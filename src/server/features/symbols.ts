@@ -1,0 +1,49 @@
+import {
+  DocumentSymbolParams,
+  SymbolInformation,
+  SymbolKind,
+  WorkspaceSymbolParams,
+} from 'vscode-languageserver/node';
+import { SymbolIndex } from '../analyzer/index';
+
+export function onDocumentSymbol(
+  params: DocumentSymbolParams,
+  index: SymbolIndex
+): SymbolInformation[] {
+  const uri = params.textDocument.uri;
+  const components = index.getComponentsInFile(uri);
+
+  return components.map((comp) => ({
+    name: comp.name,
+    kind: SymbolKind.Class,
+    location: {
+      uri: comp.uri,
+      range: comp.range,
+    },
+    containerName: comp.templateRef,
+  }));
+}
+
+export function onWorkspaceSymbol(
+  params: WorkspaceSymbolParams,
+  index: SymbolIndex
+): SymbolInformation[] {
+  const query = params.query.toLowerCase();
+  const allComponents = index.getAllComponents();
+
+  const filtered = query
+    ? allComponents.filter((comp) =>
+        comp.name.toLowerCase().includes(query)
+      )
+    : allComponents;
+
+  return filtered.map((comp) => ({
+    name: comp.name,
+    kind: SymbolKind.Class,
+    location: {
+      uri: comp.uri,
+      range: comp.range,
+    },
+    containerName: comp.filePath,
+  }));
+}
