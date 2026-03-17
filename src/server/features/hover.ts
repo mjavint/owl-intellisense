@@ -70,22 +70,20 @@ export function onHover(
     }
   }
 
-  // Check custom hooks from workspace/addons
-  if (word.startsWith('use')) {
-    const fn = index.getFunction(word);
-    if (fn) {
-      return {
-        contents: {
-          kind: MarkupKind.Markdown,
-          value: [
-            `### \`${fn.name}\``,
-            fn.signature ? `\`\`\`typescript\n${fn.signature}\n\`\`\`` : '',
-            fn.jsDoc ?? '',
-            `**Defined in:** \`${fn.filePath}\``,
-          ].filter(Boolean).join('\n\n'),
-        },
-      };
-    }
+  // Check exported functions/utilities from workspace/addons
+  const fn = index.getFunction(word);
+  if (fn) {
+    return {
+      contents: {
+        kind: MarkupKind.Markdown,
+        value: [
+          `### \`${fn.name}\``,
+          fn.signature ? `\`\`\`typescript\n${fn.signature}\n\`\`\`` : '',
+          fn.jsDoc ?? '',
+          `**Defined in:** \`${fn.filePath}\``,
+        ].filter(Boolean).join('\n\n'),
+      },
+    };
   }
 
   // Check workspace component index

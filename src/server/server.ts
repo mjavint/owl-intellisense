@@ -46,6 +46,9 @@ const DEFAULT_EXCLUDES = [
   '**/dist/**',
   '**/out/**',
   '**/.git/**',
+  '**/static/src/lib/**',
+  '**/static/src/libs/**',
+  '**/static/lib/**',
 ];
 
 connection.onInitialize((_params: InitializeParams): InitializeResult => {

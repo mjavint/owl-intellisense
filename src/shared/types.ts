@@ -107,10 +107,21 @@ export interface ParseDiagnostic {
 
 export namespace OwlNotifications {
   export const ScanStarted = 'owl/scanStarted';
+  export const ScanProgress = 'owl/scanProgress';
   export const ScanComplete = 'owl/scanComplete';
+
+  export interface ScanProgressParams {
+    scannedFiles: number;
+    totalFiles: number;
+    componentCount: number;
+    serviceCount: number;
+    functionCount: number;
+  }
 
   export interface ScanCompleteParams {
     componentCount: number;
+    serviceCount: number;
+    functionCount: number;
     fileCount: number;
     durationMs: number;
   }

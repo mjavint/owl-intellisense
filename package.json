@@ -38,6 +38,9 @@
             "**/node_modules/**",
             "**/dist/**",
             "**/out/**",
+            "**/static/src/lib/**",
+            "**/static/src/libs/**",
+            "**/static/lib/**",
             "**/.git/**"
           ],
           "description": "Glob patterns to exclude from workspace scanning"

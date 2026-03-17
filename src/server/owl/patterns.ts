@@ -414,16 +414,45 @@ export function extractExportedFunctions(ast: TSESTree.Program, uri: string, fil
       node.declaration?.type === 'VariableDeclaration'
     ) {
       for (const decl of (node as TSESTree.ExportNamedDeclaration & { declaration: TSESTree.VariableDeclaration }).declaration.declarations) {
-        if (
-          decl.id.type === 'Identifier' &&
-          (decl.init?.type === 'ArrowFunctionExpression' || decl.init?.type === 'FunctionExpression')
-        ) {
+        if (decl.id.type !== 'Identifier') {continue;}
+        const isFunc = decl.init?.type === 'ArrowFunctionExpression' || decl.init?.type === 'FunctionExpression';
+        if (isFunc) {
           const name = (decl.id as TSESTree.Identifier).name;
           const initNode = decl.init as TSESTree.ArrowFunctionExpression | TSESTree.FunctionExpression;
           const sig = `${name}(${getParamSignature(initNode.params)})`;
           const jsDoc = source ? extractJsDoc(source, node.range![0]) : undefined;
           fns.push({ name, filePath, uri, range: toRange(decl.loc!), isDefault: false, signature: sig, jsDoc });
+        } else {
+          // export const foo = value (non-function: objects, strings, classes exported as const, etc.)
+          const name = (decl.id as TSESTree.Identifier).name;
+          const jsDoc = source ? extractJsDoc(source, decl.range?.[0] ?? 0) : undefined;
+          fns.push({
+            name,
+            filePath,
+            uri,
+            range: toRange(decl.loc!),
+            isDefault: false,
+            signature: `const ${name}`,
+            jsDoc,
+          });
         }
+      }
+    }
+    // export { name as alias } re-exports
+    if (node.type === 'ExportNamedDeclaration' && !node.declaration && node.specifiers.length > 0) {
+      for (const spec of node.specifiers) {
+        if (spec.type !== 'ExportSpecifier') {continue;}
+        const exportedName = spec.exported.type === 'Identifier'
+          ? spec.exported.name
+          : (spec.exported as { value: string }).value;
+        fns.push({
+          name: exportedName,
+          filePath,
+          uri,
+          range: toRange(spec.loc!),
+          isDefault: false,
+          signature: exportedName,
+        });
       }
     }
     // export default function

@@ -1,71 +1,142 @@
-# owl-intellisense README
+# OWL IntelliSense
 
-This is the README for your extension "owl-intellisense". After writing up a brief description, we recommend including the following sections.
+Full-featured Language Server Protocol (LSP) extension for **OWL 2.x (Odoo Web Library)** development in Visual Studio Code.
 
-## Features
-
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
-
-For example if there is an image subfolder under your extension project workspace:
-
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
-
-## Requirements
-
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
-
-## Extension Settings
-
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
+Provides deep IntelliSense by scanning your Odoo addon sources (`*/static/src/**`) and building a live symbol index with AST analysis.
 
 ---
 
-## Following extension guidelines
+## Features
 
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
+### Auto-completion
+- **OWL built-in hooks** inside `setup()` — `useState`, `onMounted`, `useService`, `onWillStart`, etc. with snippet insertion
+- **Custom hooks** from addon sources — `usePopover`, `useChildRef` and any `use*` function indexed from your workspace
+- **Utility functions** from addon files — `patch`, `url`, `browser`, `debounce`, `escape`, `markup`, `sprintf`, etc.
+- **Component names** inside `static components = { }` assignments
+- **Auto-import on accept** — imports are automatically inserted or merged into existing import groups, always using `@addon/` aliases
 
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
+### Hover Documentation
+- OWL hooks: full signature, description and return type
+- Workspace components: props summary with types and optional flags
+- Addon functions: JSDoc, signature and source alias path
 
-## Working with Markdown
+### Go-to-Definition
+- Jump to OWL component class declarations
+- Resolve import specifiers (`{ MyComponent }`) to their source file
+- Resolve import paths (`@web/core/popover/popover_hook`) to the actual file
+- Supports `@addon/` alias resolution out of the box
 
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
+### Find References
+- Cross-file references for components, OWL hooks and exported functions
+- Import-site tracking via the workspace symbol index
 
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
+### Diagnostics (Static Analysis)
 
-## For more information
+| Code | Severity | Description |
+|------|----------|-------------|
+| `owl/hook-outside-setup` | Error | OWL hook called outside `setup()` |
+| `owl/hook-in-loop` | Error | Hook call inside a loop |
+| `owl/hook-in-conditional` | Warning | Hook call inside `if`/ternary |
+| `owl/hook-in-async` | Warning | Hook call inside `async` function |
+| `owl/missing-owl-import` | Error | OWL symbol used but not imported |
+| `owl/no-template` | Warning | Component with no `static template` |
+| `owl/no-setup` | Info | Component has props but no `setup()` |
+| `owl/invalid-props-schema` | Error | `static props` has invalid value |
+| `owl/unknown-prop-type` | Warning | Unknown type in props schema |
+| `owl/missing-required-prop` | Warning | Required prop missing at call site |
+| `owl/unknown-prop-passed` | Warning | Unknown prop passed to component |
+| `owl/duplicate-template-name` | Warning | Two components share the same template name |
+| `owl/normalize-import` | Hint | Import path can use `@addon/` alias |
 
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
+### Code Actions (Quick Fixes)
+- **Auto-import** any OWL hook, component or utility function with a single click
+- **Merge imports** — never creates duplicate import statements; merges into existing imports sorted alphabetically
+- **Normalize import paths** — convert `../../../../../../odoo/addons/web/static/src/core/popover/popover_hook` to `@web/core/popover/popover_hook`
 
-**Enjoy!**
+### Document & Workspace Symbols
+- List all OWL components in the current file
+- Search components across the entire workspace (`Ctrl+T`)
+
+### Real-time Scan Status Bar
+- Shows scanning progress: `⟳ OWL: 150/320 files | 24 components, 8 services, 42 utilities`
+- Disappears automatically 5 seconds after scan completes
+
+---
+
+## Requirements
+
+- Visual Studio Code `^1.110.0`
+- An Odoo workspace with addons following the standard structure:
+  ```
+  {odoo_root}/
+    addons/
+      web/static/src/...
+      mail/static/src/...
+      my_addon/static/src/...
+  ```
+
+---
+
+## Odoo Path Alias Resolution
+
+The extension automatically detects your Odoo installation and builds alias mappings:
+
+| Alias | Resolves to |
+|-------|-------------|
+| `@web/*` | `{odoo}/addons/web/static/src/*` |
+| `@mail/*` | `{odoo}/addons/mail/static/src/*` |
+| `@{addon}/*` | `{odoo}/addons/{addon}/static/src/*` |
+
+Aliases are used in completions, hover tooltips, code actions, and diagnostics automatically.
+
+---
+
+## Extension Settings
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `owlIntelliSense.enable` | boolean | `true` | Enable/disable the extension |
+| `owlIntelliSense.odooRoot` | string | `""` | Path to Odoo root (auto-detected if empty) |
+| `owlIntelliSense.scanExcludes` | string[] | see below | Glob patterns excluded from scanning |
+| `owlIntelliSense.trace.server` | enum | `"off"` | LSP trace level: `off`, `messages`, `verbose` |
+
+**Default scan excludes:**
+```json
+[
+  "**/node_modules/**",
+  "**/dist/**",
+  "**/out/**",
+  "**/.git/**",
+  "**/static/src/lib/**",
+  "**/static/src/libs/**",
+  "**/static/lib/**"
+]
+```
+
+> `lib` directories inside `static/src` are always skipped — they contain third-party libraries, not OWL source.
+
+---
+
+## Architecture
+
+The extension uses a client/server LSP architecture:
+
+- **Client** (`dist/client/extension.js`) — VSCode extension host process; manages the status bar and starts the server
+- **Server** (`dist/server/server.js`) — standalone Node.js LSP server; owns the symbol index, AST parser, workspace scanner and all language features
+
+The server process communicates with VSCode via IPC transport and can be independently debugged by attaching to port `6009`.
+
+---
+
+## Release Notes
+
+### 0.1.0
+
+Initial release:
+- LSP client/server split with IPC transport
+- AST-based workspace scanner for Odoo addon sources
+- Symbol index: components, services, registries, functions, imports
+- Completion, hover, definition, references, symbols, diagnostics, code actions
+- OWL `@addon/` alias resolution
+- 13 static analysis rules
+- Real-time status bar scanning progress

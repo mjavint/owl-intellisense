@@ -103,9 +103,8 @@ export function onCompletion(
       items.push(item);
     }
 
-    // Custom hooks from workspace/addons (functions starting with 'use')
+    // All exported symbols from workspace/addons — hooks get higher priority
     for (const fn of index.getAllFunctions()) {
-      if (!fn.name.startsWith('use')) {continue;}
       const source = resolveImportSource(fn.filePath, params.textDocument.uri, aliasMap);
       const hookImportEdits = isSpecifierImported(docText, fn.name)
         ? []
@@ -123,7 +122,7 @@ export function onCompletion(
         },
         insertText: fn.name,
         insertTextFormat: InsertTextFormat.PlainText,
-        sortText: 'z' + fn.name,
+        sortText: (fn.name.startsWith('use') ? 'z' : 'zz') + fn.name,
         data: { type: 'custom-hook', name: fn.name, uri: fn.uri },
         additionalTextEdits: hookImportEdits,
       });
@@ -192,7 +191,6 @@ export function onCompletion(
   }
 
   for (const fn of index.getAllFunctions()) {
-    if (!fn.name.startsWith('use')) {continue;}
     const source = resolveImportSource(fn.filePath, params.textDocument.uri, aliasMap);
     const hookImportEdits = isSpecifierImported(docText, fn.name)
       ? []
@@ -203,7 +201,7 @@ export function onCompletion(
       detail: fn.signature ?? fn.name,
       insertText: fn.name,
       insertTextFormat: InsertTextFormat.PlainText,
-      sortText: 'zz' + fn.name,
+      sortText: (fn.name.startsWith('use') ? 'zz' : 'zzz') + fn.name,
       data: { type: 'custom-hook', name: fn.name, uri: fn.uri },
       additionalTextEdits: hookImportEdits,
     });

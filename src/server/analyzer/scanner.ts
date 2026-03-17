@@ -60,10 +60,17 @@ export class WorkspaceScanner {
       }
     }
 
-    // Always also scan workspace folders themselves (for non-addon repos or mixed setups)
+    // Also scan workspace folders, but only their static/src subdirectories
+    // to avoid scanning non-OWL files outside addon structure
     for (const folder of workspaceFolders) {
+      // If this folder is already covered by an addon scan, skip it
+      const alreadyCovered = addons.some(a => folder.startsWith(a.root) || a.root.startsWith(folder));
+      if (alreadyCovered && addons.length > 0) { continue; }
       try {
-        this.collectFiles(folder, allFiles, excludePatterns, seenFiles);
+        // Prefer scanning only static/src if it exists
+        const staticSrc = path.join(folder, 'static', 'src');
+        const scanRoot = fs.existsSync(staticSrc) ? staticSrc : folder;
+        this.collectFiles(scanRoot, allFiles, excludePatterns, seenFiles);
       } catch (err) {
         process.stderr.write(
           `[owl-scanner] Error collecting files from ${folder}: ${err}\n`
@@ -72,21 +79,37 @@ export class WorkspaceScanner {
     }
 
     // Process in chunks of CHUNK_SIZE, yielding between chunks
+    const totalFiles = allFiles.length;
     for (let i = 0; i < allFiles.length; i += CHUNK_SIZE) {
       const chunk = allFiles.slice(i, i + CHUNK_SIZE);
       for (const filePath of chunk) {
         this.indexFile(filePath);
       }
+
+      // Send progress notification after each chunk
+      const scannedFiles = Math.min(i + CHUNK_SIZE, totalFiles);
+      this.notify(OwlNotifications.ScanProgress, {
+        scannedFiles,
+        totalFiles,
+        componentCount: this.index.getAllComponents().length,
+        serviceCount: this.index.getAllServices().length,
+        functionCount: this.countFunctions(),
+      } satisfies OwlNotifications.ScanProgressParams);
+
       // Yield to event loop between chunks
       await new Promise<void>((resolve) => setImmediate(resolve));
     }
 
     const componentCount = this.index.getAllComponents().length;
+    const serviceCount = this.index.getAllServices().length;
+    const functionCount = this.countFunctions();
     const fileCount = allFiles.length;
     const durationMs = Date.now() - startTime;
 
     const params: OwlNotifications.ScanCompleteParams = {
       componentCount,
+      serviceCount,
+      functionCount,
       fileCount,
       durationMs,
     };
@@ -118,6 +141,10 @@ export class WorkspaceScanner {
     } catch (err) {
       process.stderr.write(`[owl-scanner] Error reparsing ${uri}: ${err}\n`);
     }
+  }
+
+  private countFunctions(): number {
+    return this.index.getAllFunctions().length;
   }
 
   private indexFile(filePath: string): void {
@@ -159,6 +186,8 @@ export class WorkspaceScanner {
       if (excluded) {continue;}
 
       if (entry.isDirectory()) {
+        // Skip lib directories (third-party libraries inside static/src/lib)
+        if (entry.name === 'lib' || entry.name === 'libs') { continue; }
         this.collectFiles(fullPath, result, excludePatterns, seen);
       } else if (entry.isFile()) {
         const ext = path.extname(entry.name);

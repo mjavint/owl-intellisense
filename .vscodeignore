@@ -3,9 +3,13 @@
 out/**
 node_modules/**
 src/**
+openspec/**
+.atl/**
+.claude/**
 .gitignore
 .yarnrc
 esbuild.js
+eslint.config.mjs
 vsc-extension-quickstart.md
 **/tsconfig.json
 **/eslint.config.mjs
