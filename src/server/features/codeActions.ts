@@ -23,9 +23,9 @@ export function onCodeAction(
   const text = doc.getText();
   const currentFile = doc.uri;
 
-  // Handle normalize-import-alias diagnostics
+  // Handle normalize-import (owl/normalize-import) diagnostics
   for (const diag of params.context.diagnostics) {
-    if (diag.code !== 'normalize-import-alias') { continue; }
+    if (diag.code !== 'owl/normalize-import' && diag.code !== 'normalize-import-alias') { continue; }
     const diagData = diag.data as { source: string } | undefined;
     if (!diagData) { continue; }
 
@@ -71,6 +71,23 @@ export function onCodeAction(
       diagnostics: [diag],
       edit: { changes: { [doc.uri]: [edit] } },
     });
+  }
+
+  // Handle owl/missing-owl-import diagnostics
+  for (const diag of params.context.diagnostics) {
+    if (diag.code !== 'owl/missing-owl-import') { continue; }
+    const data = diag.data as { name: string; source: string } | undefined;
+    if (!data) { continue; }
+    const edits = buildAddImportEdits(text, data.name, data.source);
+    if (edits.length > 0) {
+      actions.push({
+        title: `Import { ${data.name} } from '${data.source}'`,
+        kind: CodeActionKind.QuickFix,
+        isPreferred: true,
+        diagnostics: [diag],
+        edit: { changes: { [doc.uri]: edits } },
+      });
+    }
   }
 
   // Collect all diagnostics in the requested range
