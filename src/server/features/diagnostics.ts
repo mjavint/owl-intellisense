@@ -1,7 +1,7 @@
 import { Diagnostic } from 'vscode-languageserver/node';
 import { parse } from '@typescript-eslint/typescript-estree';
 import type { TSESTree } from '@typescript-eslint/typescript-estree';
-import { SymbolIndex } from '../analyzer/index';
+import { IComponentReader } from '../../shared/types';
 import { checkHookRules } from './rules/hookRules';
 import { checkComponentRules } from './rules/componentRules';
 import { checkPropsRules } from './rules/propsRules';
@@ -15,7 +15,7 @@ import { getOwlImportedNames } from '../owl/patterns';
 export function validateDocument(
   uri: string,
   content: string,
-  index: SymbolIndex
+  index: IComponentReader
 ): Diagnostic[] {
   let ast: TSESTree.Program;
   try {

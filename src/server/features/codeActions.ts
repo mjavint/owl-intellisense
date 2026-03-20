@@ -9,14 +9,14 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 import { HOOK_NAMES } from '../owl/catalog';
-import { SymbolIndex } from '../analyzer/index';
+import { IComponentReader, IFunctionReader } from '../../shared/types';
 import { buildAddImportEdits, isSpecifierImported, resolveImportSource } from '../utils/importUtils';
 import { filePathToAlias, inferAliasFromPath } from '../resolver/addonDetector';
 
 export function onCodeAction(
   params: CodeActionParams,
   doc: TextDocument,
-  index: SymbolIndex,
+  index: IComponentReader & IFunctionReader,
   aliasMap?: Map<string, string>
 ): CodeAction[] {
   const actions: CodeAction[] = [];

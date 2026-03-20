@@ -4,11 +4,11 @@ import {
   SymbolKind,
   WorkspaceSymbolParams,
 } from 'vscode-languageserver/node';
-import { SymbolIndex } from '../analyzer/index';
+import { IComponentReader } from '../../shared/types';
 
 export function onDocumentSymbol(
   params: DocumentSymbolParams,
-  index: SymbolIndex
+  index: IComponentReader
 ): SymbolInformation[] {
   const uri = params.textDocument.uri;
   const components = index.getComponentsInFile(uri);
@@ -26,7 +26,7 @@ export function onDocumentSymbol(
 
 export function onWorkspaceSymbol(
   params: WorkspaceSymbolParams,
-  index: SymbolIndex
+  index: IComponentReader
 ): SymbolInformation[] {
   const query = params.query.toLowerCase();
   // PERF-07: Array.from to materialise the iterator when array methods are needed

@@ -1,6 +1,6 @@
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
 import type { TSESTree } from '@typescript-eslint/typescript-estree';
-import { SymbolIndex } from '../../analyzer/index';
+import { IComponentReader } from '../../../shared/types';
 import { walkWithAncestors, nodeToRange } from './astUtils';
 
 const VALID_PROP_TYPES = new Set([
@@ -8,7 +8,7 @@ const VALID_PROP_TYPES = new Set([
   'Symbol', 'Any',
 ]);
 
-export function checkPropsRules(ast: TSESTree.Program, index: SymbolIndex): Diagnostic[] {
+export function checkPropsRules(ast: TSESTree.Program, index: IComponentReader): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
 
   // Rule: owl/unknown-prop-type — validate types used in static props schemas

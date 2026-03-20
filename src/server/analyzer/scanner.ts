@@ -1,7 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import { AddonInfo, OwlNotifications } from "../../shared/types";
-import { SymbolIndex } from "./index";
+import { AddonInfo, OwlNotifications, ISymbolStore } from "../../shared/types";
 import { parseFile } from "./parser";
 
 const CHUNK_SIZE = 10; // PERF-05: chunk size for async scanning with event loop yield
@@ -13,7 +12,7 @@ export class WorkspaceScanner {
   private excludePatterns: RegExp[] = [];
 
   constructor(
-    private readonly index: SymbolIndex,
+    private readonly index: ISymbolStore,
     excludeGlobs: string[],
     _publishDiagnostics: (uri: string, diags: unknown[]) => void,
     private readonly notify: (method: string, params: unknown) => void,

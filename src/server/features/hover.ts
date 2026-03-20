@@ -5,7 +5,7 @@ import {
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { HOOK_NAMES, getHookByName, OWL_CLASS_NAMES, getClassByName } from '../owl/catalog';
-import { SymbolIndex } from '../analyzer/index';
+import { IComponentReader, IFunctionReader } from '../../shared/types';
 
 // PERF-10: Bounded line read — reads to end-of-line regardless of cursor position
 const MAX_HOVER_LINE_CHARS = 9999;
@@ -37,7 +37,7 @@ function getWordAtPosition(
 export function onHover(
   params: TextDocumentPositionParams,
   doc: TextDocument,
-  index: SymbolIndex
+  index: IComponentReader & IFunctionReader
 ): Hover | null {
   const word = getWordAtPosition(doc, params);
   if (!word) {return null;}

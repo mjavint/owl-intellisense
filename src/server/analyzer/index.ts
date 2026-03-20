@@ -1,12 +1,17 @@
 import {
   OwlComponent,
-  SymbolIndexInterface,
   OdooService,
   OdooRegistry,
   ExportedFunction,
   ImportRecord,
-  ParseResult,
   SetupPropertyAssignment,
+  ParseResult,
+  IComponentReader,
+  IFunctionReader,
+  IServiceReader,
+  IRegistryReader,
+  IImportReader,
+  ISetupPropReader,
 } from '../../shared/types';
 
 // ─── PERF-09: Composite key helper ───────────────────────────────────────────
@@ -15,7 +20,15 @@ function setupPropsKey(name: string, uri: string): string {
   return `${name}@${uri}`;
 }
 
-export class SymbolIndex implements SymbolIndexInterface {
+export class SymbolIndex
+  implements
+    IComponentReader,
+    IFunctionReader,
+    IServiceReader,
+    IRegistryReader,
+    IImportReader,
+    ISetupPropReader
+{
   private componentsByName: Map<string, OwlComponent> = new Map();
   private componentsByUri: Map<string, OwlComponent[]> = new Map();
   private servicesByName: Map<string, OdooService> = new Map();
@@ -97,6 +110,10 @@ export class SymbolIndex implements SymbolIndexInterface {
     const catMap = this.registriesByCategory.get(category);
     if (!catMap) {return [];}
     return Array.from(catMap.values());
+  }
+
+  getAllRegistryCategories(): string[] {
+    return Array.from(this.registriesByCategory.keys());
   }
 
   private upsertRegistry(reg: OdooRegistry): void {

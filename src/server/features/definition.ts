@@ -4,7 +4,7 @@ import {
   TextDocumentPositionParams,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
-import { SymbolIndex } from "../analyzer/index";
+import { IComponentReader, IFunctionReader } from "../../shared/types";
 import { parse } from "@typescript-eslint/typescript-estree";
 import type { TSESTree } from "@typescript-eslint/typescript-estree";
 import { getCursorContext } from "../owl/patterns";
@@ -24,7 +24,7 @@ export function invalidateAstCache(uri: string): void {
 export function onDefinition(
   params: TextDocumentPositionParams,
   doc: TextDocument,
-  index: SymbolIndex,
+  index: IComponentReader & IFunctionReader,
   aliasMap: Map<string, string>,
 ): Definition | null {
   const content = doc.getText();
@@ -110,7 +110,7 @@ function resolveSpecifierDefinition(
   source: string,
   name: string,
   currentUri: string,
-  index: SymbolIndex,
+  index: IComponentReader & IFunctionReader,
   aliasMap: Map<string, string>,
 ): Location | null {
   const resolvedFile = resolveImportToFile(source, currentUri, aliasMap);
@@ -315,7 +315,7 @@ function resolveImportToFile(
 function fallbackWordLookup(
   params: TextDocumentPositionParams,
   doc: TextDocument,
-  index: SymbolIndex,
+  index: IComponentReader & IFunctionReader,
 ): Location | null {
   const word = getWordAtPosition(doc, params.position);
   if (!word) {

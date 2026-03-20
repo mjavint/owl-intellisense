@@ -27,10 +27,10 @@ import {
   detectOdooRoot,
   detectAddons,
   buildAliasMap,
-  findOwlLibraryPath,
   findOwlLibraryFiles,
 } from "./resolver/addonDetector";
-import { AddonInfo, CompletionItemData } from "../shared/types";
+import { OwlAliasResolver } from "./resolver/owlAliasResolver";
+import { AddonInfo, CompletionItemData, ISymbolStore } from "../shared/types";
 import { buildAddImportEdits } from "./utils/importUtils";
 
 // Create the LSP connection
@@ -40,7 +40,7 @@ const connection = createConnection(ProposedFeatures.all);
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 
 // In-memory symbol index
-const index = new SymbolIndex();
+const index: ISymbolStore = new SymbolIndex();
 
 // Workspace scanner
 let scanner: WorkspaceScanner;
@@ -144,88 +144,8 @@ connection.onInitialized(async () => {
     const addons: AddonInfo[] = detectAddons(odooRoot, folderPaths);
     aliasMap = buildAliasMap(addons);
 
-    // Map @odoo/owl → web/static/lib/owl/owl.js
-    // Strategy 1: derive from @web alias already in the map
-    if (!aliasMap.has("@odoo/owl")) {
-      const webStaticSrc = aliasMap.get("@web");
-      if (webStaticSrc) {
-        const candidate = path.resolve(
-          webStaticSrc,
-          "..",
-          "lib",
-          "owl",
-          "owl.js",
-        );
-        if (fs.existsSync(candidate)) {
-          aliasMap.set("@odoo/owl", candidate);
-          process.stderr.write(
-            `[owl-server] Mapped @odoo/owl → ${candidate}\n`,
-          );
-        }
-      }
-    }
-    // Strategy 2: scan detected addons list for the web addon
-    if (!aliasMap.has("@odoo/owl")) {
-      const owlLibPath = findOwlLibraryPath(addons);
-      if (owlLibPath) {
-        aliasMap.set("@odoo/owl", owlLibPath);
-        process.stderr.write(`[owl-server] Mapped @odoo/owl → ${owlLibPath}\n`);
-      }
-    }
-    // Strategy 3: walk up ancestor directories and probe multiple sub-path patterns.
-    // Covers workspaces separated from the Odoo repo (e.g. enterprise addons alongside odoo/).
-    // Probed sub-paths (relative to each ancestor):
-    //   web/static/lib/owl/owl.js                    — workspace IS inside web addon
-    //   addons/web/static/lib/owl/owl.js              — ancestor is an addons/ dir
-    //   odoo/addons/web/static/lib/owl/owl.js         — Odoo one level nested
-    //   odoo/odoo/addons/web/static/lib/owl/owl.js    — Odoo double-nested (e.g. Repos/Odoo/odoo/odoo/)
-    if (!aliasMap.has("@odoo/owl")) {
-      const OWL_SUFFIX = path.join("web", "static", "lib", "owl", "owl.js");
-      const subPaths = [
-        OWL_SUFFIX,
-        path.join("addons", OWL_SUFFIX),
-        path.join("odoo", "addons", OWL_SUFFIX),
-        path.join("odoo", "odoo", "addons", OWL_SUFFIX),
-      ];
-      outer: for (const folder of folderPaths) {
-        // Start from the workspace folder itself (not its parent) so that
-        // sub-paths like addons/web/... are found when the workspace IS the Odoo root.
-        let dir = folder;
-        for (let i = 0; i < 10; i++) {
-          for (const sub of subPaths) {
-            const candidate = path.join(dir, sub);
-            if (fs.existsSync(candidate)) {
-              aliasMap.set("@odoo/owl", candidate);
-              process.stderr.write(
-                `[owl-server] Mapped @odoo/owl → ${candidate}\n`,
-              );
-              break outer;
-            }
-          }
-          const parent = path.dirname(dir);
-          if (parent === dir) {
-            break;
-          } // reached filesystem root
-          dir = parent;
-        }
-      }
-    }
-    // Strategy 4: use detected odooRoot directly
-    if (!aliasMap.has("@odoo/owl") && odooRoot) {
-      const candidate = path.join(
-        odooRoot,
-        "addons",
-        "web",
-        "static",
-        "lib",
-        "owl",
-        "owl.js",
-      );
-      if (fs.existsSync(candidate)) {
-        aliasMap.set("@odoo/owl", candidate);
-        process.stderr.write(`[owl-server] Mapped @odoo/owl → ${candidate}\n`);
-      }
-    }
+    // Map @odoo/owl → web/static/lib/owl/owl.js using cascade of 4 strategies
+    new OwlAliasResolver(odooRoot).resolve(folderPaths, addons, aliasMap);
 
     // Also add aliases for any workspace folder that IS itself an addon with static/src
     for (const folder of folderPaths) {

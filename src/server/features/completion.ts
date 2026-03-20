@@ -9,7 +9,6 @@ import {
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { OWL_HOOKS, HOOK_NAMES } from '../owl/catalog';
 import { RE_USE_SERVICE_OPEN, RE_REGISTRY_CATEGORY_OPEN, RE_STATIC_PROPS_BLOCK } from '../owl/patterns';
-import { SymbolIndex } from '../analyzer/index';
 import {
   buildAddImportEdits,
   buildAddImportEditsFromAst,
@@ -18,7 +17,16 @@ import {
   parseDocumentAst,
   resolveImportSource,
 } from '../utils/importUtils';
-import { CompletionContext, CompletionItemData } from '../../shared/types';
+import {
+  CompletionContext,
+  CompletionItemData,
+  IComponentReader,
+  IFunctionReader,
+  IServiceReader,
+  IRegistryReader,
+  IImportReader,
+  ISetupPropReader,
+} from '../../shared/types';
 
 // ─── PERF-03: Module-level regex cache ───────────────────────────────────────
 
@@ -463,7 +471,7 @@ export const STATIC_MEMBER_SNIPPETS: CompletionItem[] = [
 export function onCompletion(
   params: TextDocumentPositionParams,
   doc: TextDocument,
-  index: SymbolIndex,
+  index: IComponentReader & IFunctionReader & IServiceReader & IRegistryReader & IImportReader & ISetupPropReader,
   aliasMap?: Map<string, string>,
   supportsResolve = false
 ): CompletionItem[] {
@@ -525,17 +533,14 @@ export function onCompletion(
     // REQ-01: Registry category completion — when cursor is inside registry.category('...')
     if (RE_REGISTRY_CATEGORY_OPEN.test(before)) {
       const allCategoryItems: CompletionItem[] = [];
-      const indexAsAny = index as unknown as { registriesByCategory: Map<string, Map<string, unknown>> };
-      if (indexAsAny.registriesByCategory) {
-        for (const [category] of indexAsAny.registriesByCategory) {
-          const sortPrefix = getSortPrefix(category, docText, false);
-          allCategoryItems.push({
-            label: category,
-            kind: CompletionItemKind.Value,
-            detail: `Registry category`,
-            sortText: sortPrefix + category,
-          });
-        }
+      for (const category of index.getAllRegistryCategories()) {
+        const sortPrefix = getSortPrefix(category, docText, false);
+        allCategoryItems.push({
+          label: category,
+          kind: CompletionItemKind.Value,
+          detail: `Registry category`,
+          sortText: sortPrefix + category,
+        });
       }
       return allCategoryItems;
     }

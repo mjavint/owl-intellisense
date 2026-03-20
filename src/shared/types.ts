@@ -97,26 +97,64 @@ export interface SetupPropertyAssignment {
   hookReturns?: string;   // return-type string from HOOK_RETURN_TYPES (if hookName is known)
 }
 
-export interface SymbolIndexInterface {
-  // existing component methods
+// ─── SOLID ISP: Narrow read interfaces ──────────────────────────────────────
+
+export interface IComponentReader {
   getComponent(name: string): OwlComponent | undefined;
   getAllComponents(): IterableIterator<OwlComponent>;
   getComponentsInFile(uri: string): OwlComponent[];
-  upsertComponent(comp: OwlComponent): void;
-  removeFile(uri: string): void;
-  clear(): void;
+}
 
-  // new
-  getService(name: string): OdooService | undefined;
-  getAllServices(): IterableIterator<OdooService>;
-  getRegistry(category: string, key: string): OdooRegistry | undefined;
-  getRegistriesByCategory(category: string): OdooRegistry[];
+export interface IFunctionReader {
   getFunction(name: string): ExportedFunction | undefined;
   getAllFunctions(): IterableIterator<ExportedFunction>;
+  registerSourceAlias(source: string, fileUri: string): void;
+  getSourceAliasUris(source: string): string[];
+  getFunctionBySource(source: string, name: string): ExportedFunction | undefined;
+}
+
+export interface IServiceReader {
+  getService(name: string): OdooService | undefined;
+  getAllServices(): IterableIterator<OdooService>;
+}
+
+export interface IRegistryReader {
+  getRegistry(category: string, key: string): OdooRegistry | undefined;
+  getRegistriesByCategory(category: string): OdooRegistry[];
+  getAllRegistryCategories(): string[];
+}
+
+export interface IImportReader {
   getImportsInFile(uri: string): ImportRecord[];
   getImportsForSpecifier(specifier: string): ImportRecord[];
-  upsertFileSymbols(uri: string, result: ParseResult): void;
 }
+
+export interface ISetupPropReader {
+  getSetupProps(componentName: string, uri: string): SetupPropertyAssignment[] | undefined;
+}
+
+/**
+ * Full store interface: union of all narrow interfaces plus write operations.
+ * Used by server.ts, scanner.ts, and WorkspaceScanner — anything that writes to the index.
+ */
+export type ISymbolStore = IComponentReader &
+  IFunctionReader &
+  IServiceReader &
+  IRegistryReader &
+  IImportReader &
+  ISetupPropReader & {
+    upsertFileSymbols(uri: string, result: ParseResult): void;
+    upsertSetupProps(
+      componentName: string,
+      uri: string,
+      props: SetupPropertyAssignment[],
+    ): void;
+    removeFile(uri: string): void;
+    clear(): void;
+  };
+
+/** @deprecated Use ISymbolStore or the specific narrow interfaces instead. */
+export type SymbolIndexInterface = ISymbolStore;
 
 export interface ParseResult {
   uri: string;

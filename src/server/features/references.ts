@@ -1,12 +1,12 @@
 import { Location, ReferenceParams } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { SymbolIndex } from '../analyzer/index';
+import { IComponentReader, IFunctionReader, IImportReader } from '../../shared/types';
 import { OWL_HOOK_NAMES } from '../owl/catalog';
 
 export function onReferences(
   params: ReferenceParams,
   doc: TextDocument,
-  index: SymbolIndex
+  index: IComponentReader & IFunctionReader & IImportReader
 ): Location[] {
   const word = getWordAtPosition(doc, params.position);
   if (!word) {return [];}
