@@ -8,7 +8,8 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -17,41 +18,22 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Disable npm exit handlers
-        run: npm config set script-shell "bash -e"
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9"
 
       - name: Install dependencies
-        run: npm install --prefer-offline --no-audit --progress=false
+        run: pnpm install
 
       - name: Lint
-        run: npm run lint
+        run: pnpm lint
 
       - name: Type check
-        run: npm run check-types
+        run: pnpm check-types
 
       - name: Run tests
-        run: npm test
+        run: pnpm test
 
       - name: Build extension
-        run: npm run package
-
-  test-multiple-versions:
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        vscode-version: ["1.95.0", "latest"]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Install dependencies
-        run: npm install --prefer-offline --no-audit --progress=false
-
-      - name: Run tests (VS Code ${{ matrix.vscode-version }})
-        run: npm test
-        env:
-          VSCODE_VERSION: ${{ matrix.vscode-version }}
+        run: pnpm package

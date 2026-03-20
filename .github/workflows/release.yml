@@ -7,7 +7,8 @@ on:
 
 jobs:
   release:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -16,29 +17,31 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Disable npm exit handlers
-        run: npm config set script-shell "bash -e"
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9"
 
       - name: Install dependencies
-        run: npm install --prefer-offline --no-audit --progress=false
+        run: pnpm install
 
       - name: Lint
-        run: npm run lint
+        run: pnpm lint
 
       - name: Type check
-        run: npm run check-types
+        run: pnpm check-types
 
       - name: Run tests
-        run: npm test
+        run: pnpm test
 
       - name: Build extension
-        run: npm run package
+        run: pnpm package
 
       - name: Package VSIX
-        run: npx vsce package --no-dependencies
+        run: pnpm dlx vsce package --no-dependencies
 
       - name: Publish to Marketplace
-        run: vsce publish -p ${{ secrets.VS_MARKETPLACE_TOKEN }}
+        run: pnpm dlx vsce publish -p ${{ secrets.VS_MARKETPLACE_TOKEN }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

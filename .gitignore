@@ -6,3 +6,4 @@ node_modules
 .claude
 .atl
 openspec
+pnpm-lock.yaml
