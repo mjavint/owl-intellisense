@@ -46,7 +46,7 @@ export function checkHookRules(ast: TSESTree.Program): Diagnostic[] {
           severity: DiagnosticSeverity.Error,
           range: nodeToRange(callLoc),
           message: `'${calleeName}' must be called inside setup(). OWL hooks cannot be used in lifecycle callbacks or other methods.`,
-          source: 'owl-intellisense',
+          source: 'owl-lsp',
           code: 'owl/hook-outside-setup',
         });
       }
@@ -59,7 +59,7 @@ export function checkHookRules(ast: TSESTree.Program): Diagnostic[] {
         severity: DiagnosticSeverity.Error,
         range: nodeToRange(callLoc),
         message: `'${calleeName}' cannot be called inside a loop. Hook call order must be stable across renders.`,
-        source: 'owl-intellisense',
+        source: 'owl-lsp',
         code: 'owl/hook-in-loop',
       });
       return;
@@ -70,7 +70,7 @@ export function checkHookRules(ast: TSESTree.Program): Diagnostic[] {
         severity: DiagnosticSeverity.Warning,
         range: nodeToRange(callLoc),
         message: `'${calleeName}' called inside a conditional. Hook call order must be consistent — move to top of setup().`,
-        source: 'owl-intellisense',
+        source: 'owl-lsp',
         code: 'owl/hook-in-conditional',
       });
       return;
@@ -81,7 +81,7 @@ export function checkHookRules(ast: TSESTree.Program): Diagnostic[] {
         severity: DiagnosticSeverity.Warning,
         range: nodeToRange(callLoc),
         message: `'${calleeName}' called inside an async function. Hooks must be called synchronously in setup().`,
-        source: 'owl-intellisense',
+        source: 'owl-lsp',
         code: 'owl/hook-in-async',
       });
     }

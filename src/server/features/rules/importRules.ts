@@ -25,7 +25,7 @@ export function checkImportRules(ast: TSESTree.Program): Diagnostic[] {
         message: inferredAlias
           ? `Use alias: '${inferredAlias}' instead of this path.`
           : `Long relative import — consider using @addon alias if this is an Odoo module.`,
-        source: 'owl-intellisense',
+        source: 'owl-lsp',
         code: 'owl/normalize-import',
         data: { source: src },
       });
@@ -87,7 +87,7 @@ export function checkNonOwlComponentImport(ast: TSESTree.Program): Diagnostic[] 
         severity: DiagnosticSeverity.Information,
         range: nodeToRange(classNode.superClass.loc!),
         message: `Component does not extend @odoo/owl Component — OWL IntelliSense will not apply`,
-        source: 'owl-intellisense',
+        source: 'owl-lsp',
         code: 'owl/non-owl-component-import',
         data: { superName, importSrc },
       });
@@ -130,7 +130,7 @@ export function checkMissingOwlImports(
           severity: DiagnosticSeverity.Error,
           range: nodeToRange(callee.loc!),
           message: `'${name}' is not imported. Add: import { ${name} } from '@odoo/owl'`,
-          source: 'owl-intellisense',
+          source: 'owl-lsp',
           code: 'owl/missing-owl-import',
           data: { name, source: '@odoo/owl' },
         });
@@ -198,7 +198,7 @@ export function checkUnusedImports(ast: TSESTree.Program): Diagnostic[] {
         severity: DiagnosticSeverity.Hint,
         range: nodeToRange(loc),
         message: `'${localName}' is imported but never used.`,
-        source: 'owl-intellisense',
+        source: 'owl-lsp',
         code: 'owl/unused-import',
         data: { localName, source: declNode.source.value as string },
       });
@@ -233,7 +233,7 @@ export function checkDuplicateImports(ast: TSESTree.Program): Diagnostic[] {
         severity: DiagnosticSeverity.Warning,
         range: nodeToRange(decl.source.loc!),
         message: `Duplicate import from '${src}' — merge into a single import statement.`,
-        source: 'owl-intellisense',
+        source: 'owl-lsp',
         code: 'owl/duplicate-import',
         data: { source: src },
       });
@@ -253,7 +253,7 @@ export function checkDuplicateImports(ast: TSESTree.Program): Diagnostic[] {
           severity: DiagnosticSeverity.Warning,
           range: nodeToRange(spec.loc!),
           message: `'${specName}' is already imported from '${src}'.`,
-          source: 'owl-intellisense',
+          source: 'owl-lsp',
           code: 'owl/duplicate-import-specifier',
           data: { specifier: specName, source: src },
         });

@@ -8,7 +8,7 @@ let hideTimer: ReturnType<typeof setTimeout> | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   // Check if extension is enabled
-  const config = vscode.workspace.getConfiguration('owlIntelliSense');
+  const config = vscode.workspace.getConfiguration('owlLsp');
   if (!config.get<boolean>('enable', true)) {
     return;
   }
@@ -21,7 +21,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   client.onNotification('owl/scanStarted', () => {
     if (hideTimer) { clearTimeout(hideTimer); hideTimer = undefined; }
     statusBar.text = '$(loading~spin) OWL: scanning...';
-    statusBar.tooltip = 'OWL IntelliSense — scanning workspace';
+    statusBar.tooltip = 'OWL LSP — scanning workspace';
     statusBar.show();
   });
 
@@ -38,7 +38,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (params.functionCount > 0) { parts.push(`${params.functionCount} utilities`); }
     const summary = parts.length > 0 ? parts.join(', ') : 'analyzing...';
     statusBar.text = `$(loading~spin) OWL: ${params.scannedFiles}/${params.totalFiles} files | ${summary}`;
-    statusBar.tooltip = `OWL IntelliSense — scanning workspace (${params.scannedFiles}/${params.totalFiles})`;
+    statusBar.tooltip = `OWL LSP — scanning workspace (${params.scannedFiles}/${params.totalFiles})`;
   });
 
   client.onNotification('owl/scanComplete', (params: {
@@ -54,7 +54,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (params.functionCount > 0) { parts.push(`${params.functionCount} utilities`); }
     const summary = parts.join(', ') || 'no OWL symbols found';
     statusBar.text = `$(check) OWL: ${summary}`;
-    statusBar.tooltip = `OWL IntelliSense — ${params.fileCount} files scanned in ${params.durationMs}ms`;
+    statusBar.tooltip = `OWL LSP — ${params.fileCount} files scanned in ${params.durationMs}ms`;
 
     // Hide after 5 seconds
     if (hideTimer) { clearTimeout(hideTimer); }
@@ -66,7 +66,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // Register restart command
   const restartCommand = vscode.commands.registerCommand(
-    'owl-intellisense.restartServer',
+    'owl-lsp.restartServer',
     async () => {
       await client.restart();
     }

@@ -600,7 +600,7 @@ suite('importRules — checkImportRules (owl/normalize-import)', () => {
     const diag = diags.find(d => d.code === 'owl/normalize-import');
     assert.ok(diag, 'Should emit owl/normalize-import hint');
     assert.strictEqual(diag!.severity, 4, 'Should be Hint severity (4)');
-    assert.strictEqual(diag!.source, 'owl-intellisense');
+    assert.strictEqual(diag!.source, 'owl-lsp');
   });
 
   test('emits hint when import path has 3 or more ../  levels', () => {

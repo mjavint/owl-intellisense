@@ -1,19 +1,21 @@
-# OWL IntelliSense
+# OWL LSP
 
-Full-featured Language Server Protocol (LSP) extension for **OWL 2.x (Odoo Web Library)** development in Visual Studio Code.
+Language Server Protocol extension for **OWL 2.x (Odoo Web Library)** development in Visual Studio Code.
 
-Provides deep IntelliSense by scanning your Odoo addon sources (`*/static/src/**`) and building a live symbol index with AST analysis.
+Provides intelligent code editing by scanning Odoo addon sources and building a live symbol index via AST analysis.
 
 ---
 
 ## Features
 
 ### Auto-completion
-- **OWL built-in hooks** inside `setup()` — `useState`, `onMounted`, `useService`, `onWillStart`, etc. with snippet insertion
+- **OWL built-in hooks** inside `setup()` — `useState`, `onMounted`, `useService`, `onWillStart`, etc.
 - **Custom hooks** from addon sources — `usePopover`, `useChildRef` and any `use*` function indexed from your workspace
 - **Utility functions** from addon files — `patch`, `url`, `browser`, `debounce`, `escape`, `markup`, `sprintf`, etc.
 - **Component names** inside `static components = { }` assignments
-- **Auto-import on accept** — imports are automatically inserted or merged into existing import groups, always using `@addon/` aliases
+- **Service methods** — auto-complete service class methods after `useService()`
+- **Registry keys** — complete registry categories and keys (`registry.category(...)`)
+- **Auto-import on accept** — imports are automatically inserted or merged using `@addon/` aliases
 
 ### Hover Documentation
 - OWL hooks: full signature, description and return type
@@ -23,7 +25,7 @@ Provides deep IntelliSense by scanning your Odoo addon sources (`*/static/src/**
 ### Go-to-Definition
 - Jump to OWL component class declarations
 - Resolve import specifiers (`{ MyComponent }`) to their source file
-- Resolve import paths (`@web/core/popover/popover_hook`) to the actual file
+- Resolve import paths to actual files
 - Supports `@addon/` alias resolution out of the box
 
 ### Find References
@@ -39,23 +41,40 @@ Provides deep IntelliSense by scanning your Odoo addon sources (`*/static/src/**
 | `owl/hook-in-conditional` | Warning | Hook call inside `if`/ternary |
 | `owl/hook-in-async` | Warning | Hook call inside `async` function |
 | `owl/missing-owl-import` | Error | OWL symbol used but not imported |
-| `owl/no-template` | Warning | Component with no `static template` |
-| `owl/no-setup` | Info | Component has props but no `setup()` |
+| `owl/non-owl-component-import` | Warning | Component not imported from `@odoo/owl` |
 | `owl/invalid-props-schema` | Error | `static props` has invalid value |
 | `owl/unknown-prop-type` | Warning | Unknown type in props schema |
 | `owl/missing-required-prop` | Warning | Required prop missing at call site |
 | `owl/unknown-prop-passed` | Warning | Unknown prop passed to component |
+| `owl/no-template` | Warning | Component with no `static template` |
+| `owl/no-setup` | Info | Component has props but no `setup()` |
+| `owl/template-ref-dynamic` | Warning | Dynamic template reference detected |
 | `owl/duplicate-template-name` | Warning | Two components share the same template name |
 | `owl/normalize-import` | Hint | Import path can use `@addon/` alias |
+| `owl/unused-import` | Warning | Imported symbol is never used |
+| `owl/duplicate-import` | Warning | Same module imported multiple times |
+| `owl/duplicate-import-specifier` | Warning | Same symbol imported multiple times |
 
 ### Code Actions (Quick Fixes)
-- **Auto-import** any OWL hook, component or utility function with a single click
-- **Merge imports** — never creates duplicate import statements; merges into existing imports sorted alphabetically
-- **Normalize import paths** — convert `../../../../../../odoo/addons/web/static/src/core/popover/popover_hook` to `@web/core/popover/popover_hook`
+- **Auto-import** any OWL hook, component or utility function
+- **Merge imports** — never creates duplicates; merges into existing imports sorted alphabetically
+- **Normalize import paths** — convert long relative paths to `@addon/` aliases
 
 ### Document & Workspace Symbols
 - List all OWL components in the current file
-- Search components across the entire workspace (`Ctrl+T`)
+- Search components across the entire workspace
+
+### Rename
+- Rename OWL components across all files (imports + usages)
+
+### Signature Help
+- Shows function signature when typing inside function calls
+
+### Inlay Hints
+- Type annotations for props in component templates
+
+### Semantic Tokens
+- Syntax highlighting for OWL-specific constructs
 
 ### Real-time Scan Status Bar
 - Shows scanning progress: `⟳ OWL: 150/320 files | 24 components, 8 services, 42 utilities`
@@ -95,10 +114,10 @@ Aliases are used in completions, hover tooltips, code actions, and diagnostics a
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `owlIntelliSense.enable` | boolean | `true` | Enable/disable the extension |
-| `owlIntelliSense.odooRoot` | string | `""` | Path to Odoo root (auto-detected if empty) |
-| `owlIntelliSense.scanExcludes` | string[] | see below | Glob patterns excluded from scanning |
-| `owlIntelliSense.trace.server` | enum | `"off"` | LSP trace level: `off`, `messages`, `verbose` |
+| `owlLsp.enable` | boolean | `true` | Enable/disable the extension |
+| `owlLsp.odooRoot` | string | `""` | Path to Odoo root (auto-detected if empty) |
+| `owlLsp.scanExcludes` | string[] | see below | Glob patterns excluded from scanning |
+| `owlLsp.trace.server` | enum | `"off"` | LSP trace level: `off`, `messages`, `verbose` |
 
 **Default scan excludes:**
 ```json
@@ -117,6 +136,33 @@ Aliases are used in completions, hover tooltips, code actions, and diagnostics a
 
 ---
 
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `OWL LSP: Restart Server` | Restart the LSP server (useful after adding new addons) |
+
+---
+
+## Development
+
+### Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run compile` | Type-check, lint, and build with esbuild |
+| `npm run watch` | Watch mode for development |
+| `npm run package` | Production build (check-types + lint + esbuild) |
+| `npm test` | Run the test suite |
+| `npm run lint` | Run ESLint |
+| `npm run check-types` | Run TypeScript type checking |
+
+### Debugging
+
+The LSP server can be debugged by attaching to port `6009`.
+
+---
+
 ## Architecture
 
 The extension uses a client/server LSP architecture:
@@ -124,7 +170,30 @@ The extension uses a client/server LSP architecture:
 - **Client** (`dist/client/extension.js`) — VSCode extension host process; manages the status bar and starts the server
 - **Server** (`dist/server/server.js`) — standalone Node.js LSP server; owns the symbol index, AST parser, workspace scanner and all language features
 
-The server process communicates with VSCode via IPC transport and can be independently debugged by attaching to port `6009`.
+The server process communicates with VSCode via IPC transport.
+
+### Directory Structure
+
+```
+src/
+├── client/
+│   ├── client.ts          # Language client setup
+│   └── extension.ts       # VSCode extension entry
+├── server/
+│   ├── server.ts          # LSP connection and request routing
+│   ├── analyzer/          # Symbol index and workspace scanner
+│   ├── features/          # LSP features
+│   │   ├── completion/     # Auto-completion (split into contexts)
+│   │   ├── rules/         # Static analysis rules
+│   │   └── *.ts           # Hover, definition, references, etc.
+│   ├── owl/               # OWL-specific static data catalog
+│   ├── patterns/          # AST extraction patterns (split by domain)
+│   ├── resolver/           # Path and alias resolution
+│   ├── shared/            # Shared utilities, types, RequestContext
+│   └── utils/             # Import utilities
+└── shared/
+    └── types.ts           # Shared TypeScript interfaces
+```
 
 ---
 
@@ -138,5 +207,5 @@ Initial release:
 - Symbol index: components, services, registries, functions, imports
 - Completion, hover, definition, references, symbols, diagnostics, code actions
 - OWL `@addon/` alias resolution
-- 13 static analysis rules
+- 18 static analysis rules
 - Real-time status bar scanning progress

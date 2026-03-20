@@ -38,7 +38,7 @@ export function checkPropsRules(ast: TSESTree.Program, index: IComponentReader):
             severity: DiagnosticSeverity.Warning,
             range: nodeToRange(propValue.loc!),
             message: `Unknown prop type '${(propValue as TSESTree.Identifier).name}'. Expected one of: ${[...VALID_PROP_TYPES].join(', ')}.`,
-            source: 'owl-intellisense',
+            source: 'owl-lsp',
             code: 'owl/unknown-prop-type',
           });
         }
@@ -54,7 +54,7 @@ export function checkPropsRules(ast: TSESTree.Program, index: IComponentReader):
                   severity: DiagnosticSeverity.Warning,
                   range: nodeToRange(sp.value.loc!),
                   message: `Unknown prop type '${(sp.value as TSESTree.Identifier).name}'.`,
-                  source: 'owl-intellisense',
+                  source: 'owl-lsp',
                   code: 'owl/unknown-prop-type',
                 });
               }
@@ -102,7 +102,7 @@ export function checkPropsRules(ast: TSESTree.Program, index: IComponentReader):
             severity: DiagnosticSeverity.Warning,
             range: nodeToRange(propNode.key.loc!),
             message: `Unknown prop '${key}' for '${compName}'. Not in component's static props.`,
-            source: 'owl-intellisense',
+            source: 'owl-lsp',
             code: 'owl/unknown-prop-passed',
           });
         }
@@ -116,7 +116,7 @@ export function checkPropsRules(ast: TSESTree.Program, index: IComponentReader):
           severity: DiagnosticSeverity.Warning,
           range: nodeToRange(newExpr.callee.loc!),
           message: `Missing required prop '${propName}' for '${compName}'.`,
-          source: 'owl-intellisense',
+          source: 'owl-lsp',
           code: 'owl/missing-required-prop',
         });
       }

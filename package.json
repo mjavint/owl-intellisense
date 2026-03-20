@@ -1,7 +1,7 @@
 {
-  "name": "owl-intellisense",
-  "displayName": "owl-intellisense",
-  "description": "OWL 2.x IntelliSense for VSCode — completion, hover, definition, and diagnostics for Odoo OWL components",
+  "name": "owl-lsp",
+  "displayName": "OWL LSP",
+  "description": "Language Server Protocol for OWL 2.x (Odoo Web Library) — completions, hover, go-to-definition, diagnostics, and more",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.110.0"
@@ -17,19 +17,19 @@
   "contributes": {
     "commands": [
       {
-        "command": "owl-intellisense.restartServer",
-        "title": "OWL IntelliSense: Restart Server"
+        "command": "owl-lsp.restartServer",
+        "title": "OWL LSP: Restart Server"
       }
     ],
     "configuration": {
-      "title": "OWL IntelliSense",
+      "title": "OWL LSP",
       "properties": {
-        "owlIntelliSense.enable": {
+        "owlLsp.enable": {
           "type": "boolean",
           "default": true,
-          "description": "Enable OWL IntelliSense"
+          "description": "Enable OWL LSP"
         },
-        "owlIntelliSense.scanExcludes": {
+        "owlLsp.scanExcludes": {
           "type": "array",
           "items": {
             "type": "string"
@@ -45,7 +45,7 @@
           ],
           "description": "Glob patterns to exclude from workspace scanning"
         },
-        "owlIntelliSense.trace.server": {
+        "owlLsp.trace.server": {
           "type": "string",
           "enum": [
             "off",
@@ -55,7 +55,7 @@
           "default": "off",
           "description": "Trace LSP server communication"
         },
-        "owlIntelliSense.odooRoot": {
+        "owlLsp.odooRoot": {
           "type": "string",
           "default": "",
           "description": "Path to the Odoo root directory (auto-detected if empty)"

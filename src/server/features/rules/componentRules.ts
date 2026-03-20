@@ -41,7 +41,7 @@ export function checkComponentRules(ast: TSESTree.Program): Diagnostic[] {
             severity: DiagnosticSeverity.Information,
             range: nodeToRange(val.loc!),
             message: `'${className}': template is a variable reference — cannot be validated statically.`,
-            source: 'owl-intellisense',
+            source: 'owl-lsp',
             code: 'owl/template-ref-dynamic',
           });
           hasTemplate = true;
@@ -66,7 +66,7 @@ export function checkComponentRules(ast: TSESTree.Program): Diagnostic[] {
             severity: DiagnosticSeverity.Error,
             range: nodeToRange(val.loc!),
             message: `'${className}': static props must be an object or array schema, got ${val.type}.`,
-            source: 'owl-intellisense',
+            source: 'owl-lsp',
             code: 'owl/invalid-props-schema',
           });
         }
@@ -89,7 +89,7 @@ export function checkComponentRules(ast: TSESTree.Program): Diagnostic[] {
         severity: DiagnosticSeverity.Warning,
         range: nodeToRange(classNode.id!.loc!),
         message: `'${className}' extends Component but has no static template defined.`,
-        source: 'owl-intellisense',
+        source: 'owl-lsp',
         code: 'owl/no-template',
       });
     }
@@ -100,7 +100,7 @@ export function checkComponentRules(ast: TSESTree.Program): Diagnostic[] {
         severity: DiagnosticSeverity.Information,
         range: nodeToRange(classNode.id!.loc!),
         message: `'${className}' defines static props but has no setup() method.`,
-        source: 'owl-intellisense',
+        source: 'owl-lsp',
         code: 'owl/no-setup',
       });
     }
@@ -112,7 +112,7 @@ export function checkComponentRules(ast: TSESTree.Program): Diagnostic[] {
           severity: DiagnosticSeverity.Warning,
           range: nodeToRange(classNode.id!.loc!),
           message: `Duplicate template name '${templateValue}' — also used by '${templateNames.get(templateValue)}'.`,
-          source: 'owl-intellisense',
+          source: 'owl-lsp',
           code: 'owl/duplicate-template-name',
         });
       } else {
