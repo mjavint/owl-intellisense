@@ -29,7 +29,8 @@ export function onWorkspaceSymbol(
   index: SymbolIndex
 ): SymbolInformation[] {
   const query = params.query.toLowerCase();
-  const allComponents = index.getAllComponents();
+  // PERF-07: Array.from to materialise the iterator when array methods are needed
+  const allComponents = Array.from(index.getAllComponents());
 
   const filtered = query
     ? allComponents.filter((comp) =>

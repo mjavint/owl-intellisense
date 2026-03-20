@@ -4,8 +4,11 @@ import {
   TextDocumentPositionParams,
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { HOOK_NAMES, getHookByName } from '../owl/catalog';
+import { HOOK_NAMES, getHookByName, OWL_CLASS_NAMES, getClassByName } from '../owl/catalog';
 import { SymbolIndex } from '../analyzer/index';
+
+// PERF-10: Bounded line read — reads to end-of-line regardless of cursor position
+const MAX_HOVER_LINE_CHARS = 9999;
 
 /**
  * Gets the word at the cursor position in the document.
@@ -17,7 +20,7 @@ function getWordAtPosition(
   const { line, character } = params.position;
   const lineText = doc.getText({
     start: { line, character: 0 },
-    end: { line, character: character + 100 },
+    end: { line, character: MAX_HOVER_LINE_CHARS },
   });
 
   // Find word boundaries around cursor character position
@@ -38,6 +41,29 @@ export function onHover(
 ): Hover | null {
   const word = getWordAtPosition(doc, params);
   if (!word) {return null;}
+
+  // Check OWL class catalog (Component, App, EventBus, etc.)
+  if (OWL_CLASS_NAMES.has(word)) {
+    const cls = getClassByName(word);
+    if (cls) {
+      return {
+        contents: {
+          kind: MarkupKind.Markdown,
+          value: [
+            `### \`${cls.name}\``,
+            '',
+            '```typescript',
+            cls.signature,
+            '```',
+            '',
+            cls.description,
+            '',
+            '_OWL class — imported from `@odoo/owl`_',
+          ].join('\n'),
+        },
+      };
+    }
+  }
 
   // Check OWL hook catalog
   if (HOOK_NAMES.has(word)) {

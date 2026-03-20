@@ -156,6 +156,62 @@ export const OWL_HOOKS: OWLHook[] = [
   },
 ];
 
+export interface OWLClass {
+  name: string;
+  signature: string;
+  description: string;
+}
+
+export const OWL_CLASSES: OWLClass[] = [
+  {
+    name: 'Component',
+    signature: 'class Component<Props = {}, Env = {}> extends Component',
+    description:
+      'Base class for all OWL components. Subclass it and define a static `template` property (XML template name) plus an optional `props` schema for prop validation.',
+  },
+  {
+    name: 'App',
+    signature: 'new App(Root: typeof Component, config?: AppConfig)',
+    description:
+      'OWL application container. Creates and mounts the root component tree. Call `.mount(target)` to attach to a DOM element.',
+  },
+  {
+    name: 'EventBus',
+    signature: 'new EventBus()',
+    description:
+      'Simple pub/sub event bus. Use `.on(event, owner, callback)` to subscribe and `.trigger(event, payload)` to publish.',
+  },
+  {
+    name: 'reactive',
+    signature: 'reactive<T extends object>(state: T, callback?: () => void): T',
+    description:
+      'Creates a reactive proxy that calls the optional callback whenever any property is mutated. Used to build fine-grained reactivity outside of `useState`.',
+  },
+  {
+    name: 'markup',
+    signature: 'markup(value: string): MarkupType',
+    description:
+      'Marks a string as safe HTML so OWL renders it without escaping. Use with caution — only pass trusted content.',
+  },
+  {
+    name: 'xml',
+    signature: 'xml`<template>...</template>`',
+    description:
+      'Tagged template literal that registers an inline XML template and returns its name. Useful for defining templates directly in JavaScript/TypeScript files.',
+  },
+  {
+    name: 'mount',
+    signature: 'mount(Component: typeof Component, target: HTMLElement, config?: AppConfig): Promise<Component>',
+    description: 'Shorthand to create an App and mount it to a DOM target in one call.',
+  },
+];
+
+export const OWL_CLASS_NAMES: Set<string> = new Set(OWL_CLASSES.map((c) => c.name));
+
+export function getClassByName(name: string): OWLClass | undefined {
+  return OWL_CLASSES.find((c) => c.name === name);
+}
+
 export const HOOK_NAMES: Set<string> = new Set(OWL_HOOKS.map((h) => h.name));
 
 // Alias for use in references provider

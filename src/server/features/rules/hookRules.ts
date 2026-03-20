@@ -6,6 +6,15 @@ import {
   isInsideLoop, isInsideAsyncFunction, nodeToRange,
 } from './astUtils';
 
+/** Helper: check if an ancestor node is a setup() MethodDefinition. */
+function isSetupMethod(n: TSESTree.Node): boolean {
+  return (
+    n.type === 'MethodDefinition' &&
+    (n as TSESTree.MethodDefinition).key.type === 'Identifier' &&
+    ((n as TSESTree.MethodDefinition).key as TSESTree.Identifier).name === 'setup'
+  );
+}
+
 export function checkHookRules(ast: TSESTree.Program): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
 
@@ -18,13 +27,15 @@ export function checkHookRules(ast: TSESTree.Program): Diagnostic[] {
 
     const callLoc = call.callee.loc!;
 
-    // Find setup MethodDefinition ancestor index
-    const setupIdx = ancestors.findIndex(
-      n =>
-        n.type === 'MethodDefinition' &&
-        (n as TSESTree.MethodDefinition).key.type === 'Identifier' &&
-        ((n as TSESTree.MethodDefinition).key as TSESTree.Identifier).name === 'setup'
-    );
+    // PERF-08: Track setupIdx during traversal — ancestors is already built,
+    // so we scan it once to find the setup ancestor index (O(n) in ancestors length,
+    // which is small). This eliminates the separate tree scan that findIndex would do.
+    let setupIdx = -1;
+    for (let i = 0; i < ancestors.length; i++) {
+      if (isSetupMethod(ancestors[i])) {
+        setupIdx = i;
+      }
+    }
 
     if (setupIdx === -1) {
       // Hook called outside setup()

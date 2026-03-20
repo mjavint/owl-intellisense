@@ -37,22 +37,26 @@ export function parseImportGroups(source: string): ImportGroup[] {
 }
 
 /**
- * Build the TextEdits needed to add `specifier` imported from `source`.
- * - If an import from `source` already exists: merge specifier in (sorted, no dup).
- * - If not: insert a new import after the last existing import line.
- * Returns [] if the specifier is already imported.
+ * Parse document text into an AST for use with buildAddImportEditsFromAst / isSpecifierImportedFromAst.
+ * Returns null on parse failure.
  */
-export function buildAddImportEdits(
-  docText: string,
+export function parseDocumentAst(docText: string): TSESTree.Program | null {
+  try {
+    return parse(docText, { tolerant: true, loc: true }) as TSESTree.Program;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Build the TextEdits needed to add `specifier` imported from `source`.
+ * Accepts a pre-parsed AST to avoid re-parsing (PERF-02 eager-fallback path).
+ */
+export function buildAddImportEditsFromAst(
+  ast: TSESTree.Program,
   specifier: string,
   source: string
 ): TextEdit[] {
-  let ast: TSESTree.Program;
-  try {
-    ast = parse(docText, { tolerant: true, loc: true }) as TSESTree.Program;
-  } catch {
-    return [];
-  }
 
   // Find existing import from same source
   const existing = (ast.body as TSESTree.Node[]).find(
@@ -94,26 +98,66 @@ export function buildAddImportEdits(
 }
 
 /**
+ * Build the TextEdits needed to add `specifier` imported from `source`.
+ * Parses the document text internally (use buildAddImportEditsFromAst when AST is pre-parsed).
+ */
+export function buildAddImportEdits(
+  docText: string,
+  specifier: string,
+  source: string
+): TextEdit[] {
+  const ast = parseDocumentAst(docText);
+  if (!ast) { return []; }
+  return buildAddImportEditsFromAst(ast, specifier, source);
+}
+
+// ─── PERF-09: WeakMap cache for imported specifier Set ────────────────────────
+
+const astImportCache = new WeakMap<TSESTree.Program, Set<string>>();
+
+/**
+ * REQ-PERF-09: Returns a cached Set of all imported specifier names from the given AST.
+ * Built once per AST and stored in a WeakMap so it is garbage-collected when the AST is.
+ */
+export function getAllImportedSpecifiers(ast: TSESTree.Program): Set<string> {
+  let cache = astImportCache.get(ast);
+  if (!cache) {
+    cache = new Set<string>();
+    for (const node of ast.body) {
+      if (node.type !== 'ImportDeclaration') { continue; }
+      for (const s of node.specifiers) {
+        if (s.type === 'ImportSpecifier') {
+          const name = s.imported.type === 'Identifier'
+            ? s.imported.name
+            : (s.imported as TSESTree.StringLiteral).value as string;
+          cache.add(name);
+        }
+        if (s.type === 'ImportDefaultSpecifier') {
+          cache.add(s.local.name);
+        }
+      }
+    }
+    astImportCache.set(ast, cache);
+  }
+  return cache;
+}
+
+/**
+ * Check if a specifier is already imported (pre-parsed AST variant — PERF-02 eager-fallback).
+ * Uses getAllImportedSpecifiers with WeakMap cache for O(1) lookup.
+ */
+export function isSpecifierImportedFromAst(ast: TSESTree.Program, specifier: string): boolean {
+  return getAllImportedSpecifiers(ast).has(specifier);
+}
+
+/**
  * Check if a specifier is already imported from any source in the document.
+ * Parses internally (use isSpecifierImportedFromAst when AST is pre-parsed).
  */
 export function isSpecifierImported(docText: string, specifier: string): boolean {
-  let ast: TSESTree.Program;
-  try {
-    ast = parse(docText, { tolerant: true, loc: true }) as TSESTree.Program;
-  } catch {
-    return false;
-  }
-  for (const node of ast.body) {
-    if (node.type !== 'ImportDeclaration') { continue; }
-    for (const s of node.specifiers) {
-      if (s.type === 'ImportSpecifier') {
-        const name = s.imported.type === 'Identifier' ? s.imported.name : (s.imported as TSESTree.StringLiteral).value as string;
-        if (name === specifier) { return true; }
-      }
-      if (s.type === 'ImportDefaultSpecifier' && s.local.name === specifier) { return true; }
-    }
-  }
-  return false;
+  const ast = parseDocumentAst(docText);
+  if (!ast) { return false; }
+  return isSpecifierImportedFromAst(ast, specifier);
 }
 
 function findLastImportLine(body: TSESTree.Node[]): number {

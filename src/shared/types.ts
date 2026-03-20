@@ -1,5 +1,23 @@
 import { Range } from 'vscode-languageserver-types';
 
+// ─── PERF-01: Completion context discriminated union ─────────────────────────
+
+export type CompletionContext =
+  | { kind: 'setup'; componentName: string }
+  | { kind: 'staticComponents' }
+  | { kind: 'thisProperty'; propertyChain: string[] }
+  | { kind: 'useService'; serviceClass: string | null }
+  | { kind: 'unknown' };
+
+// ─── PERF-02: Completion item data payload ────────────────────────────────────
+
+export interface CompletionItemData {
+  specifierName: string;
+  documentUri: string;
+  position: { line: number; character: number };
+  modulePath: string; // source module for the import
+}
+
 export interface PropDef {
   type: string;
   optional: boolean;
@@ -68,10 +86,21 @@ export interface ImportRecord {
   range: Range;
 }
 
+/**
+ * Represents a single property assignment inside a setup() method body.
+ * e.g. `this.myState = useState({})` produces:
+ *   { name: 'myState', hookName: 'useState', hookReturns: 'T' }
+ */
+export interface SetupPropertyAssignment {
+  name: string;           // property name (this.XXX)
+  hookName?: string;      // hook function called on the RHS (if any)
+  hookReturns?: string;   // return-type string from HOOK_RETURN_TYPES (if hookName is known)
+}
+
 export interface SymbolIndexInterface {
   // existing component methods
   getComponent(name: string): OwlComponent | undefined;
-  getAllComponents(): OwlComponent[];
+  getAllComponents(): IterableIterator<OwlComponent>;
   getComponentsInFile(uri: string): OwlComponent[];
   upsertComponent(comp: OwlComponent): void;
   removeFile(uri: string): void;
@@ -79,11 +108,11 @@ export interface SymbolIndexInterface {
 
   // new
   getService(name: string): OdooService | undefined;
-  getAllServices(): OdooService[];
+  getAllServices(): IterableIterator<OdooService>;
   getRegistry(category: string, key: string): OdooRegistry | undefined;
   getRegistriesByCategory(category: string): OdooRegistry[];
   getFunction(name: string): ExportedFunction | undefined;
-  getAllFunctions(): ExportedFunction[];
+  getAllFunctions(): IterableIterator<ExportedFunction>;
   getImportsInFile(uri: string): ImportRecord[];
   getImportsForSpecifier(specifier: string): ImportRecord[];
   upsertFileSymbols(uri: string, result: ParseResult): void;

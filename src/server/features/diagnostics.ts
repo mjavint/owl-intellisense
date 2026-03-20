@@ -5,7 +5,7 @@ import { SymbolIndex } from '../analyzer/index';
 import { checkHookRules } from './rules/hookRules';
 import { checkComponentRules } from './rules/componentRules';
 import { checkPropsRules } from './rules/propsRules';
-import { checkImportRules, checkMissingOwlImports } from './rules/importRules';
+import { checkImportRules, checkMissingOwlImports, checkNonOwlComponentImport } from './rules/importRules';
 import { getOwlImportedNames } from '../owl/patterns';
 
 /**
@@ -30,6 +30,9 @@ export function validateDocument(
 
   try { diagnostics.push(...checkImportRules(ast)); }
   catch (err) { process.stderr.write(`[owl-diagnostics] checkImportRules error for ${uri}: ${err}\n`); }
+
+  try { diagnostics.push(...checkNonOwlComponentImport(ast)); }
+  catch (err) { process.stderr.write(`[owl-diagnostics] checkNonOwlComponentImport error for ${uri}: ${err}\n`); }
 
   try { diagnostics.push(...checkMissingOwlImports(ast, owlImported)); }
   catch (err) { process.stderr.write(`[owl-diagnostics] checkMissingOwlImports error for ${uri}: ${err}\n`); }

@@ -85,14 +85,18 @@ export function checkPropsRules(ast: TSESTree.Program, index: SymbolIndex): Diag
         .map(p => ((p as TSESTree.Property).key as TSESTree.Identifier).name)
     );
 
+    // Build prop node map once for O(1) lookup (REQ-PERF-05)
+    const propNodeMap = new Map<string, TSESTree.Property>();
+    for (const p of (arg as TSESTree.ObjectExpression).properties) {
+      if (p.type === 'Property' && p.key.type === 'Identifier') {
+        propNodeMap.set((p.key as TSESTree.Identifier).name, p);
+      }
+    }
+
     // Unknown props passed
     for (const key of passedKeys) {
       if (!(key in comp.props)) {
-        const propNode = (arg as TSESTree.ObjectExpression).properties.find(
-          (p): p is TSESTree.Property =>
-            p.type === 'Property' && p.key.type === 'Identifier' &&
-            ((p as TSESTree.Property).key as TSESTree.Identifier).name === key
-        );
+        const propNode = propNodeMap.get(key);
         if (propNode) {
           diagnostics.push({
             severity: DiagnosticSeverity.Warning,

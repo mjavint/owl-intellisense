@@ -1,13 +1,18 @@
-import { Definition, Location, TextDocumentPositionParams } from 'vscode-languageserver/node';
-import { TextDocument } from 'vscode-languageserver-textdocument';
-import { SymbolIndex } from '../analyzer/index';
-import { parse } from '@typescript-eslint/typescript-estree';
-import type { TSESTree } from '@typescript-eslint/typescript-estree';
-import { getCursorContext } from '../owl/patterns';
-import { resolveAlias } from '../resolver/addonDetector';
-import { fileURLToPath, pathToFileURL } from 'url';
-import * as fs from 'fs';
-import * as path from 'path';
+import {
+  Definition,
+  Location,
+  TextDocumentPositionParams,
+} from "vscode-languageserver/node";
+import { TextDocument } from "vscode-languageserver-textdocument";
+import { SymbolIndex } from "../analyzer/index";
+import { parse } from "@typescript-eslint/typescript-estree";
+import type { TSESTree } from "@typescript-eslint/typescript-estree";
+import { getCursorContext } from "../owl/patterns";
+import { resolveAlias } from "../resolver/addonDetector";
+import { getHookByName, getClassByName } from "../owl/catalog";
+import { fileURLToPath, pathToFileURL } from "url";
+import * as fs from "fs";
+import * as path from "path";
 
 // Simple per-URI AST cache (cleared on document change)
 const astCache = new Map<string, { version: number; ast: TSESTree.Program }>();
@@ -20,7 +25,7 @@ export function onDefinition(
   params: TextDocumentPositionParams,
   doc: TextDocument,
   index: SymbolIndex,
-  aliasMap: Map<string, string>
+  aliasMap: Map<string, string>,
 ): Definition | null {
   const content = doc.getText();
   const uri = doc.uri;
@@ -32,31 +37,63 @@ export function onDefinition(
     ast = cached.ast;
   } else {
     try {
-      ast = parse(content, { jsx: true, tolerant: true, loc: true }) as TSESTree.Program;
+      ast = parse(content, {
+        jsx: true,
+        tolerant: true,
+        loc: true,
+      }) as TSESTree.Program;
       astCache.set(uri, { version: doc.version, ast });
     } catch {
       return fallbackWordLookup(params, doc, index);
     }
   }
 
-  const ctx = getCursorContext(ast, params.position.line, params.position.character);
+  const ctx = getCursorContext(
+    ast,
+    params.position.line,
+    params.position.character,
+  );
 
-  if (ctx.type === 'import-path' && ctx.source) {
+  if (ctx.type === "import-path" && ctx.source) {
+    // For @odoo/owl: navigate to owl_module.js (the Odoo module declaration) if it exists.
+    // Symbols use owl_module.js (handled in import-specifier branch below).
+    if (ctx.source === "@odoo/owl") {
+      const owlFile = resolveImportToFile(ctx.source, uri, aliasMap);
+      if (owlFile) {
+        const moduleFile = path.join(path.dirname(owlFile), "owl_module.js");
+        const target = fs.existsSync(moduleFile) ? moduleFile : owlFile;
+        const fileUri = pathToFileURL(target).toString();
+        return Location.create(fileUri, {
+          start: { line: 0, character: 0 },
+          end: { line: 0, character: 0 },
+        });
+      }
+    }
     return resolveImportPathToLocation(ctx.source, uri, aliasMap);
   }
 
-  if (ctx.type === 'import-specifier' && ctx.source && ctx.name) {
-    // Resolve the source file, then find the export
-    const resolvedFile = resolveImportToFile(ctx.source, uri, aliasMap);
-    if (resolvedFile) {
-      // Try to find the specific export in the resolved file
-      const fileUri = pathToFileURL(resolvedFile).toString();
-      const comp = index.getComponentsInFile(fileUri).find(c => c.name === ctx.name);
-      if (comp) {return Location.create(comp.uri, comp.range);}
-      const fn = index.getAllFunctions().find(f => f.name === ctx.name && f.uri === fileUri);
-      if (fn) {return Location.create(fn.uri, fn.range);}
-      // Fallback: jump to file start
-      return Location.create(fileUri, { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } });
+  if (ctx.type === "import-specifier" && ctx.source && ctx.name) {
+    return resolveSpecifierDefinition(
+      ctx.source,
+      ctx.name,
+      uri,
+      index,
+      aliasMap,
+    );
+  }
+
+  // Cursor is on a usage site (not an import line): find which import the name comes from
+  const word = getWordAtPosition(doc, params.position);
+  if (word) {
+    const importSource = findImportSourceForName(ast, word);
+    if (importSource !== undefined) {
+      return resolveSpecifierDefinition(
+        importSource,
+        word,
+        uri,
+        index,
+        aliasMap,
+      );
     }
   }
 
@@ -64,35 +101,211 @@ export function onDefinition(
   return fallbackWordLookup(params, doc, index);
 }
 
+/**
+ * Given an import source and specifier name, resolve to the definition location.
+ * Uses a multi-level fallback strategy so that @odoo/owl symbols always resolve
+ * to something meaningful rather than falling back to VS Code's reference list.
+ */
+function resolveSpecifierDefinition(
+  source: string,
+  name: string,
+  currentUri: string,
+  index: SymbolIndex,
+  aliasMap: Map<string, string>,
+): Location | null {
+  const resolvedFile = resolveImportToFile(source, currentUri, aliasMap);
+
+  // Check source alias index first (covers owl_module.js / owl.js registered via registerSourceAlias)
+  const sourceAliasSymbol = index.getFunctionBySource(source, name);
+  if (sourceAliasSymbol) {
+    return Location.create(sourceAliasSymbol.uri, sourceAliasSymbol.range);
+  }
+
+  if (resolvedFile) {
+    const fileUri = pathToFileURL(resolvedFile).toString();
+    // Try symbol index first (works for indexed TS/JS files)
+    const comp = index
+      .getComponentsInFile(fileUri)
+      .find((c) => c.name === name);
+    if (comp) {
+      return Location.create(comp.uri, comp.range);
+    }
+    // PERF-07: Array.from on iterator for find semantics
+    const fn = Array.from(index.getAllFunctions()).find(
+      (f: { name: string; uri: string }) =>
+        f.name === name && f.uri === fileUri,
+    );
+    if (fn) {
+      return Location.create(fn.uri, fn.range);
+    }
+    // File found but not indexed (e.g. owl.js bundle): scan file text for symbol position
+    const pos = findSymbolPositionInFile(resolvedFile, name);
+    return Location.create(fileUri, { start: pos, end: pos });
+  }
+
+  // For @odoo/owl: the file may not be resolvable via aliasMap (e.g. workspace outside Odoo tree).
+  // Try to use any registered source-alias URI for owl.js to scan for the symbol directly,
+  // rather than falling back to a workspace-wide search that would find the wrong symbol.
+  if (source === "@odoo/owl") {
+    const aliasUris = index.getSourceAliasUris(source);
+    // Scan each registered OWL file for the symbol, preferring a precise location.
+    let fallbackUri: string | undefined;
+    for (const aliasUri of aliasUris) {
+      try {
+        const aliasFile = fileURLToPath(aliasUri);
+        const pos = findSymbolPositionInFile(aliasFile, name);
+        if (pos.line !== 0 || pos.character !== 0) {
+          // Symbol found at a meaningful location in the bundle — return precise position.
+          return Location.create(aliasUri, { start: pos, end: pos });
+        }
+        fallbackUri = fallbackUri ?? aliasUri;
+      } catch {
+        /* skip invalid URIs */
+      }
+    }
+    // Symbol not found by text scan. Validate against the OWL catalog before navigating to
+    // line 0 of the file, to avoid false positives for unrecognised names.
+    if (fallbackUri && (getHookByName(name) || getClassByName(name))) {
+      return Location.create(fallbackUri, {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 0 },
+      });
+    }
+    // Last resort: search for owl.js from the current file's directory upward.
+    // This handles workspaces where aliasMap/@odoo/owl was not set at startup
+    // (e.g. server.ts walk-up strategies start from workspace parent, missing
+    // cases where owl.js lives *inside* the workspace tree).
+    const owlJsOnDemand = findOwlJsFromFile(currentUri);
+    if (owlJsOnDemand) {
+      const pos = findSymbolPositionInFile(owlJsOnDemand, name);
+      const owlUri = pathToFileURL(owlJsOnDemand).toString();
+      return Location.create(owlUri, { start: pos, end: pos });
+    }
+    // owl.js not registered and not resolvable — return null (no false reference list)
+    return null;
+  }
+
+  // Non-OWL unresolved source — search workspace index for any export of this symbol
+  // (OWL symbols are often re-exported from @web files that ARE indexed)
+  // PERF-07: Array.from on iterator for find semantics
+  const fnAnywhere = Array.from(index.getAllFunctions()).find(
+    (f: { name: string }) => f.name === name,
+  );
+  if (fnAnywhere) {
+    return Location.create(fnAnywhere.uri, fnAnywhere.range);
+  }
+  const compAnywhere = Array.from(index.getAllComponents()).find(
+    (c: { name: string }) => c.name === name,
+  );
+  if (compAnywhere) {
+    return Location.create(compAnywhere.uri, compAnywhere.range);
+  }
+
+  // Truly not found anywhere
+  return null;
+}
+
+/**
+ * Scan a file line-by-line for the first declaration of a symbol.
+ * Handles: `function foo(`, `const foo =`, `foo = function`, `exports.foo =`, `foo:`.
+ * Falls back to {line:0, character:0} if not found.
+ */
+function findSymbolPositionInFile(
+  filePath: string,
+  symbol: string,
+): { line: number; character: number } {
+  try {
+    const content = fs.readFileSync(filePath, "utf-8");
+    const lines = content.split("\n");
+    const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const patterns = [
+      new RegExp(`\\bclass\\s+${escaped}[\\s{(]`), // class Foo { / class Foo(
+      new RegExp(`\\bfunction\\s+${escaped}\\s*\\(`), // function foo(
+      new RegExp(`\\bconst\\s+${escaped}\\s*=\\s*(?!void\\s|undefined)`), // const foo = <not void/undefined>
+      new RegExp(`\\blet\\s+${escaped}\\s*=\\s*(?!void\\s|undefined)`),
+      new RegExp(`\\bvar\\s+${escaped}\\s*=\\s*(?!void\\s|undefined)`),
+      new RegExp(`\\b${escaped}\\s*=\\s*function`),
+      new RegExp(`exports\\.${escaped}\\s*=\\s*(?!void\\s|undefined)`), // exports.foo = <real value>
+      new RegExp(`Object\\.defineProperty[^)]*"${escaped}"`),
+      new RegExp(`exports\\["${escaped}"\\]\\s*=\\s*(?!void\\s|undefined)`), // exports["foo"] = <real value>
+    ];
+    for (let i = 0; i < lines.length; i++) {
+      for (const re of patterns) {
+        const m = re.exec(lines[i]);
+        if (m) {
+          return { line: i, character: m.index };
+        }
+      }
+    }
+  } catch {
+    /* ignore read errors */
+  }
+  return { line: 0, character: 0 };
+}
+
+/**
+ * Scan the AST's import declarations to find which module a local name was imported from.
+ * Returns the import source string, or undefined if the name isn't an import.
+ */
+function findImportSourceForName(
+  ast: TSESTree.Program,
+  name: string,
+): string | undefined {
+  for (const node of ast.body) {
+    if (node.type !== "ImportDeclaration") {
+      continue;
+    }
+    for (const spec of node.specifiers) {
+      if (spec.local.name === name) {
+        return node.source.value as string;
+      }
+    }
+  }
+  return undefined;
+}
+
 function resolveImportPathToLocation(
   source: string,
   currentUri: string,
-  aliasMap: Map<string, string>
+  aliasMap: Map<string, string>,
 ): Location | null {
   const resolvedFile = resolveImportToFile(source, currentUri, aliasMap);
-  if (!resolvedFile) {return null;}
+  if (!resolvedFile) {
+    return null;
+  }
   const fileUri = pathToFileURL(resolvedFile).toString();
-  return Location.create(fileUri, { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } });
+  return Location.create(fileUri, {
+    start: { line: 0, character: 0 },
+    end: { line: 0, character: 0 },
+  });
 }
 
 function resolveImportToFile(
   source: string,
   currentUri: string,
-  aliasMap: Map<string, string>
+  aliasMap: Map<string, string>,
 ): string | null {
   // Try alias resolution
   const aliasResolved = resolveAlias(source, aliasMap);
-  if (aliasResolved && fs.existsSync(aliasResolved)) {return aliasResolved;}
+  if (aliasResolved && fs.existsSync(aliasResolved)) {
+    return aliasResolved;
+  }
 
   // Try relative resolution
-  if (source.startsWith('.')) {
+  if (source.startsWith(".")) {
     let currentFile: string;
-    try { currentFile = fileURLToPath(currentUri); } catch { return null; }
+    try {
+      currentFile = fileURLToPath(currentUri);
+    } catch {
+      return null;
+    }
     const dir = path.dirname(currentFile);
     const resolved = path.resolve(dir, source);
-    for (const ext of ['', '.ts', '.js', '/index.ts', '/index.js']) {
+    for (const ext of ["", ".ts", ".js", "/index.ts", "/index.js"]) {
       const candidate = resolved + ext;
-      if (fs.existsSync(candidate)) {return candidate;}
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
     }
   }
 
@@ -102,24 +315,72 @@ function resolveImportToFile(
 function fallbackWordLookup(
   params: TextDocumentPositionParams,
   doc: TextDocument,
-  index: SymbolIndex
+  index: SymbolIndex,
 ): Location | null {
   const word = getWordAtPosition(doc, params.position);
-  if (!word) {return null;}
+  if (!word) {
+    return null;
+  }
   const comp = index.getComponent(word);
-  if (comp) {return Location.create(comp.uri, comp.range);}
+  if (comp) {
+    return Location.create(comp.uri, comp.range);
+  }
   const fn = index.getFunction(word);
-  if (fn) {return Location.create(fn.uri, fn.range);}
+  if (fn) {
+    return Location.create(fn.uri, fn.range);
+  }
   return null;
 }
 
-function getWordAtPosition(doc: TextDocument, position: { line: number; character: number }): string | null {
-  const line = doc.getText({ start: { line: position.line, character: 0 }, end: { line: position.line, character: 2000 } });
+function getWordAtPosition(
+  doc: TextDocument,
+  position: { line: number; character: number },
+): string | null {
+  const line = doc.getText({
+    start: { line: position.line, character: 0 },
+    end: { line: position.line, character: 2000 },
+  });
   const char = position.character;
   const re = /[a-zA-Z_$][a-zA-Z0-9_$]*/g;
   let m;
   while ((m = re.exec(line)) !== null) {
-    if (m.index <= char && char <= m.index + m[0].length) {return m[0];}
+    if (m.index <= char && char <= m.index + m[0].length) {
+      return m[0];
+    }
+  }
+  return null;
+}
+
+/**
+ * Walk up the directory tree from the current file looking for owl.js.
+ * Covers cases where server.ts walk-up strategies missed the file because
+ * they start from the workspace folder's *parent*, not from inside the tree.
+ * Probes both direct paths and common addons sub-directories.
+ */
+function findOwlJsFromFile(currentUri: string): string | null {
+  let currentFile: string;
+  try {
+    currentFile = fileURLToPath(currentUri);
+  } catch {
+    return null;
+  }
+  const OWL_SUFFIX = path.join("web", "static", "lib", "owl", "owl.js");
+  const subPaths = [
+    OWL_SUFFIX,
+    path.join("addons", OWL_SUFFIX),
+    path.join("odoo", "addons", OWL_SUFFIX),
+  ];
+  let dir = path.dirname(currentFile);
+  for (let i = 0; i < 10; i++) {
+    for (const sub of subPaths) {
+      const candidate = path.join(dir, sub);
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) { break; } // filesystem root
+    dir = parent;
   }
   return null;
 }

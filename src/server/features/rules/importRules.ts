@@ -36,6 +36,68 @@ export function checkImportRules(ast: TSESTree.Program): Diagnostic[] {
 }
 
 /**
+ * SC-08b: Detect `class X extends Component` where Component is NOT imported from @odoo/owl.
+ * Emits an `information` diagnostic so OWL IntelliSense can warn that it won't apply.
+ */
+export function checkNonOwlComponentImport(ast: TSESTree.Program): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+
+  // Build a map: localName → importSource for all imported specifiers
+  const importSourceByLocal = new Map<string, string>();
+  for (const node of ast.body) {
+    if (node.type !== 'ImportDeclaration') { continue; }
+    const decl = node as TSESTree.ImportDeclaration;
+    const src = decl.source.value as string;
+    for (const spec of decl.specifiers) {
+      if (spec.type === 'ImportSpecifier') {
+        importSourceByLocal.set(spec.local.name, src);
+      } else if (spec.type === 'ImportDefaultSpecifier') {
+        importSourceByLocal.set(spec.local.name, src);
+      }
+    }
+  }
+
+  // Walk class declarations looking for `extends <Identifier>`
+  for (const node of ast.body) {
+    let classNode: TSESTree.ClassDeclaration | null = null;
+
+    if (node.type === 'ClassDeclaration') {
+      classNode = node as TSESTree.ClassDeclaration;
+    } else if (
+      node.type === 'ExportNamedDeclaration' &&
+      (node as TSESTree.ExportNamedDeclaration).declaration?.type === 'ClassDeclaration'
+    ) {
+      classNode = (node as TSESTree.ExportNamedDeclaration).declaration as TSESTree.ClassDeclaration;
+    } else if (
+      node.type === 'ExportDefaultDeclaration' &&
+      (node as TSESTree.ExportDefaultDeclaration).declaration?.type === 'ClassDeclaration'
+    ) {
+      classNode = (node as TSESTree.ExportDefaultDeclaration).declaration as TSESTree.ClassDeclaration;
+    }
+
+    if (!classNode || !classNode.superClass) { continue; }
+    if (classNode.superClass.type !== 'Identifier') { continue; }
+
+    const superName = (classNode.superClass as TSESTree.Identifier).name;
+    const importSrc = importSourceByLocal.get(superName);
+
+    // Only flag if we can confirm it is imported from somewhere other than @odoo/owl
+    if (importSrc !== undefined && importSrc !== '@odoo/owl') {
+      diagnostics.push({
+        severity: DiagnosticSeverity.Information,
+        range: nodeToRange(classNode.superClass.loc!),
+        message: `Component does not extend @odoo/owl Component — OWL IntelliSense will not apply`,
+        source: 'owl-intellisense',
+        code: 'owl/non-owl-component-import',
+        data: { superName, importSrc },
+      });
+    }
+  }
+
+  return diagnostics;
+}
+
+/**
  * Check if OWL hooks used in file are imported from @odoo/owl.
  * Emits owl/missing-owl-import for each unimported OWL hook symbol.
  */
