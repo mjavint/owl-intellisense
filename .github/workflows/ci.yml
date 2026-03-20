@@ -15,8 +15,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
@@ -38,20 +38,20 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        vscode-version: ['1.85.0', '1.95.0', 'latest']
+        vscode-version: ["1.85.0", "1.95.0", "latest"]
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Run tests (VS Code ${{ matrix.vscode-version }})
-        run: npm test
+        run: npm run test
         env:
           VSCODE_VERSION: ${{ matrix.vscode-version }}
