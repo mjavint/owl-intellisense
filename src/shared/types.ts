@@ -42,6 +42,7 @@ export interface OWLHook {
   returns?: string;
   completionSnippet?: string;
   isLifecycle: boolean;
+  importSource?: string;
 }
 
 export interface AddonInfo {

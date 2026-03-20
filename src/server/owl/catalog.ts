@@ -112,6 +112,7 @@ export const OWL_HOOKS: OWLHook[] = [
     returns: 'Service instance',
     isLifecycle: false,
     completionSnippet: 'useService("$0")',
+    importSource: '@web/core/utils/hooks',
   },
   {
     name: 'useStore',

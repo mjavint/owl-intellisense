@@ -761,7 +761,7 @@ export function onCompletion(
       const sortPrefix = getSortPrefix(hook.name, docText, true);
       const importEdits = isImported(hook.name)
         ? []
-        : getImportEdits(hook.name, "@odoo/owl");
+        : getImportEdits(hook.name, hook.importSource ?? "@odoo/owl");
       const item: CompletionItem = {
         label: hook.name,
         kind: CompletionItemKind.Function,
@@ -785,7 +785,7 @@ export function onCompletion(
         additionalTextEdits: importEdits,
       };
       if (supportsResolve && !isImported(hook.name)) {
-        item.data = makeItemData(hook.name, "@odoo/owl");
+        item.data = makeItemData(hook.name, hook.importSource ?? "@odoo/owl");
       }
       items.push(item);
     }
@@ -995,7 +995,7 @@ export function onCompletion(
   for (const hook of OWL_HOOKS) {
     const sortPrefix = getSortPrefix(hook.name, docText, true);
     const imported = isImported(hook.name);
-    const importEdits = imported ? [] : getImportEdits(hook.name, "@odoo/owl");
+    const importEdits = imported ? [] : getImportEdits(hook.name, hook.importSource ?? "@odoo/owl");
     const item: CompletionItem = {
       label: hook.name,
       kind: CompletionItemKind.Function,
@@ -1008,7 +1008,7 @@ export function onCompletion(
       additionalTextEdits: importEdits,
     };
     if (supportsResolve && !imported) {
-      item.data = makeItemData(hook.name, "@odoo/owl");
+      item.data = makeItemData(hook.name, hook.importSource ?? "@odoo/owl");
     }
     items.push(item);
   }
