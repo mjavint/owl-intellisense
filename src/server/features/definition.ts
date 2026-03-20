@@ -13,6 +13,10 @@ import { getHookByName, getClassByName } from "../owl/catalog";
 import { fileURLToPath, pathToFileURL } from "url";
 import * as fs from "fs";
 import * as path from "path";
+import { TypeResolver } from "./typeResolver";
+
+// Singleton TypeResolver — populated by server.ts when .d.ts files are discovered
+export const typeResolver = new TypeResolver();
 
 // Simple per-URI AST cache (cleared on document change)
 const astCache = new Map<string, { version: number; ast: TSESTree.Program }>();
@@ -199,6 +203,19 @@ function resolveSpecifierDefinition(
   );
   if (compAnywhere) {
     return Location.create(compAnywhere.uri, compAnywhere.range);
+  }
+
+  // TypeResolver fallback: search loaded .d.ts definitions for the symbol.
+  // This handles cases like @odoo/owl where owl.d.ts provides type members.
+  if (typeResolver.hasDefinitions()) {
+    const typeDef = typeResolver.getTypeDefinition(name);
+    if (typeDef) {
+      const fileUri = pathToFileURL(typeDef.filePath).toString();
+      return Location.create(fileUri, {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 0 },
+      });
+    }
   }
 
   // Truly not found anywhere

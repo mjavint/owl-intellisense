@@ -8,7 +8,7 @@ import {
   TextDocumentPositionParams,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
-import { OWL_HOOKS, HOOK_NAMES } from "../owl/catalog";
+import { OWL_HOOKS, HOOK_NAMES, OWL_CLASSES } from "../owl/catalog";
 import {
   RE_USE_SERVICE_OPEN,
   RE_REGISTRY_CATEGORY_OPEN,
@@ -1013,6 +1013,28 @@ export function onCompletion(
     items.push(item);
   }
 
+  // OWL built-in classes (Component, App, EventBus, reactive, markup, xml, mount)
+  for (const owlClass of OWL_CLASSES) {
+    const sortPrefix = getSortPrefix(owlClass.name, docText, true);
+    const imported = isImported(owlClass.name);
+    const importEdits = imported ? [] : getImportEdits(owlClass.name, "@odoo/owl");
+    const item: CompletionItem = {
+      label: owlClass.name,
+      kind: CompletionItemKind.Class,
+      detail: owlClass.signature,
+      documentation: { kind: MarkupKind.Markdown, value: owlClass.description },
+      insertText: owlClass.name,
+      insertTextFormat: InsertTextFormat.PlainText,
+      sortText: sortPrefix + owlClass.name,
+      additionalTextEdits: importEdits,
+    };
+    if (supportsResolve && !imported) {
+      item.data = makeItemData(owlClass.name, "@odoo/owl");
+    }
+    items.push(item);
+  }
+
+  // Workspace components
   for (const comp of index.getAllComponents()) {
     const source = resolveImportSource(
       comp.filePath,

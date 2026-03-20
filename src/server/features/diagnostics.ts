@@ -5,7 +5,7 @@ import { IComponentReader } from '../../shared/types';
 import { checkHookRules } from './rules/hookRules';
 import { checkComponentRules } from './rules/componentRules';
 import { checkPropsRules } from './rules/propsRules';
-import { checkImportRules, checkMissingOwlImports, checkNonOwlComponentImport } from './rules/importRules';
+import { checkImportRules, checkMissingOwlImports, checkNonOwlComponentImport, checkUnusedImports, checkDuplicateImports } from './rules/importRules';
 import { getOwlImportedNames } from '../owl/patterns';
 
 /**
@@ -45,6 +45,12 @@ export function validateDocument(
 
   try { diagnostics.push(...checkPropsRules(ast, index)); }
   catch (err) { process.stderr.write(`[owl-diagnostics] checkPropsRules error for ${uri}: ${err}\n`); }
+
+  try { diagnostics.push(...checkUnusedImports(ast)); }
+  catch (err) { process.stderr.write(`[owl-diagnostics] checkUnusedImports error for ${uri}: ${err}\n`); }
+
+  try { diagnostics.push(...checkDuplicateImports(ast)); }
+  catch (err) { process.stderr.write(`[owl-diagnostics] checkDuplicateImports error for ${uri}: ${err}\n`); }
 
   return diagnostics;
 }

@@ -25,7 +25,13 @@ import { suite, test } from "mocha";
 import { SymbolKind } from "vscode-languageserver/node";
 
 import { onDocumentSymbol, onWorkspaceSymbol } from "../server/features/symbols";
-import { OwlComponent, IComponentReader } from "../shared/types";
+import {
+  OwlComponent,
+  IComponentReader,
+  IFunctionReader,
+  IServiceReader,
+  IRegistryReader,
+} from "../shared/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -62,8 +68,11 @@ function makeComponent(
  * Minimal IComponentReader backed by a flat array of components.
  * getComponentsInFile filters by uri; getAllComponents returns all.
  */
-function makeIndex(components: OwlComponent[]): IComponentReader {
+function makeIndex(
+  components: OwlComponent[]
+): IComponentReader & IFunctionReader & IServiceReader & IRegistryReader {
   return {
+    // IComponentReader
     getComponent: (name) => components.find((c) => c.name === name),
     getAllComponents: function* () {
       for (const c of components) {
@@ -71,6 +80,19 @@ function makeIndex(components: OwlComponent[]): IComponentReader {
       }
     },
     getComponentsInFile: (uri) => components.filter((c) => c.uri === uri),
+    // IFunctionReader
+    getFunction: (_name) => undefined,
+    getAllFunctions: function* () {},
+    registerSourceAlias: () => {},
+    getSourceAliasUris: (_source) => [],
+    getFunctionBySource: (_source, _name) => undefined,
+    // IServiceReader
+    getService: (_name) => undefined,
+    getAllServices: function* () {},
+    // IRegistryReader
+    getRegistry: (_category, _key) => undefined,
+    getRegistriesByCategory: (_category) => [],
+    getAllRegistryCategories: () => [],
   };
 }
 

@@ -28,6 +28,8 @@ import {
   ExportedFunction,
   IComponentReader,
   IFunctionReader,
+  IServiceReader,
+  IRegistryReader,
 } from "../shared/types";
 
 /**
@@ -105,7 +107,7 @@ function makeFunction(
 function makeIndex(
   components: OwlComponent[] = [],
   functions: ExportedFunction[] = []
-): IComponentReader & IFunctionReader {
+): IComponentReader & IFunctionReader & IServiceReader & IRegistryReader {
   const compMap = new Map(components.map((c) => [c.name, c]));
   const fnMap = new Map(functions.map((f) => [f.name, f]));
 
@@ -120,6 +122,13 @@ function makeIndex(
     registerSourceAlias: () => {},
     getSourceAliasUris: (_source) => [],
     getFunctionBySource: (_source, _name) => undefined,
+    // IServiceReader
+    getService: (_name) => undefined,
+    getAllServices: function* () {},
+    // IRegistryReader
+    getRegistry: (_category, _key) => undefined,
+    getRegistriesByCategory: (_category) => [],
+    getAllRegistryCategories: () => [],
   };
 }
 

@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { AddonInfo, OwlNotifications, ISymbolStore } from "../../shared/types";
 import { parseFile } from "./parser";
+import { validateDocument } from "../features/diagnostics";
 
 const CHUNK_SIZE = 10; // PERF-05: chunk size for async scanning with event loop yield
 const DEBOUNCE_MS = 300;
@@ -10,15 +11,17 @@ export class WorkspaceScanner {
   private debounceMap: Map<string, ReturnType<typeof setTimeout>> = new Map();
   // PERF-06: Pre-compiled exclude patterns — compiled once in constructor, reused per file
   private excludePatterns: RegExp[] = [];
+  private readonly publishDiagnostics: (uri: string, diags: unknown[]) => void;
 
   constructor(
     private readonly index: ISymbolStore,
     excludeGlobs: string[],
-    _publishDiagnostics: (uri: string, diags: unknown[]) => void,
+    publishDiagnostics: (uri: string, diags: unknown[]) => void,
     private readonly notify: (method: string, params: unknown) => void,
   ) {
     // PERF-06: Compile all exclude globs into RegExp once at initialization
     this.excludePatterns = excludeGlobs.map((g) => this.globToRegExp(g));
+    this.publishDiagnostics = publishDiagnostics;
   }
 
   /**
@@ -205,6 +208,8 @@ export class WorkspaceScanner {
     try {
       const result = parseFile(content, uri);
       this.index.upsertFileSymbols(uri, result);
+      const diags = validateDocument(uri, content, this.index);
+      this.publishDiagnostics(uri, diags);
     } catch (err) {
       process.stderr.write(
         `[owl-scanner] Error indexing ${filePath}: ${err}\n`,

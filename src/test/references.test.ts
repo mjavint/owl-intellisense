@@ -26,6 +26,7 @@ import {
   IComponentReader,
   IFunctionReader,
   IImportReader,
+  IServiceReader,
 } from "../shared/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -82,7 +83,8 @@ interface MockIndexOptions {
 
 function makeIndex(opts: MockIndexOptions = {}): IComponentReader &
   IFunctionReader &
-  IImportReader {
+  IImportReader &
+  IServiceReader {
   const compMap = new Map((opts.components ?? []).map((c) => [c.name, c]));
   const fnMap = new Map((opts.functions ?? []).map((f) => [f.name, f]));
   const importsBySpec = opts.importsBySpecifier ?? new Map<string, ImportRecord[]>();
@@ -101,6 +103,9 @@ function makeIndex(opts: MockIndexOptions = {}): IComponentReader &
     // IImportReader
     getImportsInFile: (_uri) => [],
     getImportsForSpecifier: (spec) => importsBySpec.get(spec) ?? [],
+    // IServiceReader
+    getService: (_name) => undefined,
+    getAllServices: function* () {},
   };
 }
 

@@ -21,6 +21,14 @@ import { onDefinition, invalidateAstCache } from "./features/definition";
 import { onReferences } from "./features/references";
 import { onDocumentSymbol, onWorkspaceSymbol } from "./features/symbols";
 import { onCodeAction } from "./features/codeActions";
+import { onSignatureHelp } from "./features/signatureHelp";
+import { onPrepareRename, onRename } from "./features/rename";
+import { onInlayHint } from "./features/inlayHints";
+import {
+  onSemanticTokens,
+  SEMANTIC_TOKENS_LEGEND,
+} from "./features/semanticTokens";
+import { typeResolver } from "./features/definition";
 import * as fs from "fs";
 import * as path from "path";
 import {
@@ -82,6 +90,21 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
       workspaceSymbolProvider: true,
       codeActionProvider: {
         codeActionKinds: [CodeActionKind.QuickFix],
+      },
+      signatureHelpProvider: {
+        triggerCharacters: ['(', ','],
+        retriggerCharacters: [')'],
+      },
+      renameProvider: {
+        prepareProvider: true,
+      },
+      inlayHintProvider: {
+        resolveProvider: false,
+      },
+      semanticTokensProvider: {
+        legend: SEMANTIC_TOKENS_LEGEND,
+        full: true,
+        range: false,
       },
     },
   };
@@ -198,6 +221,18 @@ connection.onInitialized(async () => {
       );
     }
 
+    // Load .d.ts type definitions into TypeResolver for definition fallback
+    // (e.g. owl.d.ts provides member definitions for @odoo/owl types)
+    const dtsCandidates: string[] = [];
+    for (const addon of addons) {
+      if (!addon.staticSrcPath) {continue;}
+      const owlDts = path.join(addon.root, "static", "lib", "owl", "owl.d.ts");
+      if (fs.existsSync(owlDts)) {dtsCandidates.push(owlDts);}
+    }
+    for (const dts of dtsCandidates) {
+      typeResolver.loadTypeDefinitions(dts).catch(() => {/* ignore */});
+    }
+
     scanner
       .scanWorkspaceFolders(folderPaths, addons, owlExtraFiles)
       .catch((err) => {
@@ -226,6 +261,13 @@ connection.onDidChangeWatchedFiles((params) => {
       }
     }
   }
+});
+
+documents.onDidOpen((event) => {
+  const { document } = event;
+  const content = document.getText();
+  const diags = validateDocument(document.uri, content, index);
+  connection.sendDiagnostics({ uri: document.uri, diagnostics: diags });
 });
 
 documents.onDidSave((event) => {
@@ -314,6 +356,46 @@ connection.onCodeAction((params) => {
     return [];
   }
   return onCodeAction(params, doc, index, aliasMap);
+});
+
+connection.onSignatureHelp((params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) {
+    return null;
+  }
+  return onSignatureHelp(params, doc, index);
+});
+
+connection.onPrepareRename((params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) {
+    return null;
+  }
+  return onPrepareRename(params, doc, index);
+});
+
+connection.onRenameRequest(async (params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) {
+    return null;
+  }
+  return onRename(params, doc, index);
+});
+
+connection.languages.inlayHint.on((params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) {
+    return [];
+  }
+  return onInlayHint(params, doc, index);
+});
+
+connection.languages.semanticTokens.on((params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) {
+    return { data: [] };
+  }
+  return onSemanticTokens(params, doc);
 });
 
 // Start listening

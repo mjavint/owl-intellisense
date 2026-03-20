@@ -4,6 +4,7 @@ export type AncestorStack = TSESTree.Node[];
 
 /**
  * Walk AST with ancestor stack. visitor receives (node, ancestors).
+ * PERF: Uses push/pop instead of spread to avoid per-node array allocations.
  */
 export function walkWithAncestors(
   node: any,
@@ -13,16 +14,17 @@ export function walkWithAncestors(
   if (!node || typeof node !== 'object') { return; }
   if (node.type) {
     visitor(node as TSESTree.Node, ancestors);
-    const nextAncestors = [...ancestors, node as TSESTree.Node];
+    ancestors.push(node as TSESTree.Node);
     for (const key of Object.keys(node)) {
       if (key === 'parent') { continue; }
       const child = node[key];
       if (Array.isArray(child)) {
-        for (const item of child) { walkWithAncestors(item, visitor, nextAncestors); }
+        for (const item of child) { walkWithAncestors(item, visitor, ancestors); }
       } else if (child && typeof child === 'object' && child.type) {
-        walkWithAncestors(child, visitor, nextAncestors);
+        walkWithAncestors(child, visitor, ancestors);
       }
     }
+    ancestors.pop();
   }
 }
 

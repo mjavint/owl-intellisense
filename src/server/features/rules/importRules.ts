@@ -1,7 +1,7 @@
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
 import type { TSESTree } from '@typescript-eslint/typescript-estree';
 import { OWL_HOOK_NAMES } from '../../owl/catalog';
-import { nodeToRange } from './astUtils';
+import { nodeToRange, walkWithAncestors, AncestorStack } from './astUtils';
 import { inferAliasFromPath } from '../../resolver/addonDetector';
 
 export function checkImportRules(ast: TSESTree.Program): Diagnostic[] {
@@ -117,14 +117,18 @@ export function checkMissingOwlImports(
   }
 
   // Walk call expressions for OWL hook names not imported
-  function walk(n: any): void {
-    if (!n || typeof n !== 'object') { return; }
-    if (n.type === 'CallExpression' && n.callee?.type === 'Identifier') {
-      const name = n.callee.name as string;
+  // PERF: Use shared walkWithAncestors to avoid duplicated walk implementation
+  walkWithAncestors(ast, (n: TSESTree.Node, _ancestors: AncestorStack) => {
+    if (
+      n.type === 'CallExpression' &&
+      (n as TSESTree.CallExpression).callee?.type === 'Identifier'
+    ) {
+      const callee = (n as TSESTree.CallExpression).callee as TSESTree.Identifier;
+      const name = callee.name;
       if (OWL_HOOK_NAMES.has(name) && !allImported.has(name)) {
         diagnostics.push({
           severity: DiagnosticSeverity.Error,
-          range: nodeToRange(n.callee.loc!),
+          range: nodeToRange(callee.loc!),
           message: `'${name}' is not imported. Add: import { ${name} } from '@odoo/owl'`,
           source: 'owl-intellisense',
           code: 'owl/missing-owl-import',
@@ -132,13 +136,132 @@ export function checkMissingOwlImports(
         });
       }
     }
-    for (const key of Object.keys(n)) {
-      if (key === 'parent') { continue; }
-      const child = n[key];
-      if (Array.isArray(child)) { child.forEach(walk); }
-      else if (child && typeof child === 'object' && child.type) { walk(child); }
+  });
+  return diagnostics;
+}
+
+// ─── Unused imports detection ─────────────────────────────────────────────────
+
+/**
+ * owl/unused-import: Detect imported names that are never referenced in the file body.
+ *
+ * Skips type-only imports (we don't have type info) and side-effect imports.
+ * Uses a simple identifier walk to collect all non-import references.
+ */
+export function checkUnusedImports(ast: TSESTree.Program): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+
+  // Collect all imported local names with their location
+  interface ImportedName {
+    localName: string;
+    loc: TSESTree.SourceLocation;
+    declNode: TSESTree.ImportDeclaration;
+  }
+  const importedNames: ImportedName[] = [];
+
+  for (const node of ast.body) {
+    if (node.type !== 'ImportDeclaration') { continue; }
+    const decl = node as TSESTree.ImportDeclaration;
+    // Side-effect import: import 'foo' — skip
+    if (decl.specifiers.length === 0) { continue; }
+
+    for (const spec of decl.specifiers) {
+      importedNames.push({
+        localName: spec.local.name,
+        loc: spec.local.loc!,
+        declNode: decl,
+      });
     }
   }
-  walk(ast);
+
+  if (importedNames.length === 0) { return []; }
+
+  // Collect all identifier usages outside import declarations
+  const usedNames = new Set<string>();
+  for (const node of ast.body) {
+    if (node.type === 'ImportDeclaration') { continue; }
+    walkWithAncestors(node, (n) => {
+      if (n.type === 'Identifier') {
+        usedNames.add((n as TSESTree.Identifier).name);
+      }
+      // Also catch JSXIdentifier (components used in JSX)
+      if ((n as any).type === 'JSXIdentifier') {
+        usedNames.add((n as any).name as string);
+      }
+    });
+  }
+
+  // Report unused imports
+  for (const { localName, loc, declNode } of importedNames) {
+    if (!usedNames.has(localName)) {
+      diagnostics.push({
+        severity: DiagnosticSeverity.Hint,
+        range: nodeToRange(loc),
+        message: `'${localName}' is imported but never used.`,
+        source: 'owl-intellisense',
+        code: 'owl/unused-import',
+        data: { localName, source: declNode.source.value as string },
+      });
+    }
+  }
+
+  return diagnostics;
+}
+
+// ─── Duplicate imports detection ─────────────────────────────────────────────
+
+/**
+ * owl/duplicate-import: Detect the same specifier imported from the same source
+ * more than once, or the same source imported in multiple declarations.
+ */
+export function checkDuplicateImports(ast: TSESTree.Program): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+
+  // Map: "source|specifier" → first occurrence loc
+  const seen = new Map<string, TSESTree.SourceLocation>();
+  // Map: source → first import decl loc (for detecting `import A from 'x'` + `import B from 'x'`)
+  const seenSources = new Map<string, TSESTree.SourceLocation>();
+
+  for (const node of ast.body) {
+    if (node.type !== 'ImportDeclaration') { continue; }
+    const decl = node as TSESTree.ImportDeclaration;
+    const src = decl.source.value as string;
+
+    // Check for duplicate source (two separate import declarations from same module)
+    if (seenSources.has(src)) {
+      diagnostics.push({
+        severity: DiagnosticSeverity.Warning,
+        range: nodeToRange(decl.source.loc!),
+        message: `Duplicate import from '${src}' — merge into a single import statement.`,
+        source: 'owl-intellisense',
+        code: 'owl/duplicate-import',
+        data: { source: src },
+      });
+    } else {
+      seenSources.set(src, decl.source.loc!);
+    }
+
+    // Check for duplicate specifiers within the same source
+    for (const spec of decl.specifiers) {
+      const specName =
+        spec.type === 'ImportSpecifier'
+          ? (spec.imported.type === 'Identifier' ? spec.imported.name : (spec.imported as any).value as string)
+          : spec.local.name;
+      const key = `${src}|${specName}`;
+      if (seen.has(key)) {
+        diagnostics.push({
+          severity: DiagnosticSeverity.Warning,
+          range: nodeToRange(spec.loc!),
+          message: `'${specName}' is already imported from '${src}'.`,
+          source: 'owl-intellisense',
+          code: 'owl/duplicate-import-specifier',
+          data: { specifier: specName, source: src },
+        });
+      } else {
+        seen.set(key, spec.loc!);
+      }
+    }
+  }
+
   return diagnostics;
 }
