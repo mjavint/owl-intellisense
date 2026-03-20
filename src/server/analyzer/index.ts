@@ -12,7 +12,7 @@ import {
   IRegistryReader,
   IImportReader,
   ISetupPropReader,
-} from '../../shared/types';
+} from "../../shared/types";
 
 // ─── PERF-09: Composite key helper ───────────────────────────────────────────
 
@@ -33,7 +33,8 @@ export class SymbolIndex
   private componentsByUri: Map<string, OwlComponent[]> = new Map();
   private servicesByName: Map<string, OdooService> = new Map();
   private servicesByUri: Map<string, OdooService[]> = new Map();
-  readonly registriesByCategory: Map<string, Map<string, OdooRegistry>> = new Map();
+  readonly registriesByCategory: Map<string, Map<string, OdooRegistry>> =
+    new Map();
   private registriesByUri: Map<string, OdooRegistry[]> = new Map();
   private functionsByName: Map<string, ExportedFunction> = new Map();
   private functionsByUri: Map<string, ExportedFunction[]> = new Map();
@@ -42,7 +43,8 @@ export class SymbolIndex
   // PERF-04: Reverse map for O(1) specifier cleanup on file removal
   private importSpecifiersByUri: Map<string, Set<string>> = new Map();
   // PERF-09: Setup props indexed by composite key "${name}@${uri}"
-  private setupPropsByComponent: Map<string, SetupPropertyAssignment[]> = new Map();
+  private setupPropsByComponent: Map<string, SetupPropertyAssignment[]> =
+    new Map();
   private setupPropsByUri: Map<string, string[]> = new Map(); // uri → list of composite keys
   // Source alias map: virtual source (e.g. '@odoo/owl') → set of file URIs
   // Used to look up symbols from OWL library files by their import source
@@ -108,7 +110,9 @@ export class SymbolIndex
 
   getRegistriesByCategory(category: string): OdooRegistry[] {
     const catMap = this.registriesByCategory.get(category);
-    if (!catMap) {return [];}
+    if (!catMap) {
+      return [];
+    }
     return Array.from(catMap.values());
   }
 
@@ -124,7 +128,9 @@ export class SymbolIndex
 
     // PERF-05: Incremental update instead of filter+push
     const existing = this.registriesByUri.get(reg.uri) ?? [];
-    const idx = existing.findIndex((r) => r.category === reg.category && r.key === reg.key);
+    const idx = existing.findIndex(
+      (r) => r.category === reg.category && r.key === reg.key,
+    );
     if (idx >= 0) {
       existing[idx] = reg;
     } else {
@@ -183,17 +189,32 @@ export class SymbolIndex
    * Get all functions exported from files registered under a source alias.
    * Prioritizes the first URI registered (owl_module.js should be registered first).
    */
-  getFunctionBySource(source: string, name: string): ExportedFunction | undefined {
+  getFunctionBySource(
+    source: string,
+    name: string,
+  ): ExportedFunction | undefined {
     const uris = this.sourceAliasToUris.get(source);
-    if (!uris) {return undefined;}
+    if (!uris) {
+      return undefined;
+    }
     for (const uri of uris) {
       const fns = this.functionsByUri.get(uri) ?? [];
-      const fn = fns.find(f => f.name === name);
-      if (fn) {return fn;}
+      const fn = fns.find((f) => f.name === name);
+      if (fn) {
+        return fn;
+      }
       const comps = this.componentsByUri.get(uri) ?? [];
       // components are not functions but check for class-like symbols
-      const comp = comps.find(c => c.name === name);
-      if (comp) {return { name: comp.name, filePath: comp.filePath, uri: comp.uri, range: comp.range, isDefault: false };}
+      const comp = comps.find((c) => c.name === name);
+      if (comp) {
+        return {
+          name: comp.name,
+          filePath: comp.filePath,
+          uri: comp.uri,
+          range: comp.range,
+          isDefault: false,
+        };
+      }
     }
     return undefined;
   }
@@ -211,7 +232,8 @@ export class SymbolIndex
   private upsertImports(uri: string, imports: ImportRecord[]): void {
     // PERF-04: Use importSpecifiersByUri for O(|old|+|new|) cleanup instead of full scan
     const newSpecifiers = new Set(imports.map((imp) => imp.specifier));
-    const oldSpecifiers = this.importSpecifiersByUri.get(uri) ?? new Set<string>();
+    const oldSpecifiers =
+      this.importSpecifiersByUri.get(uri) ?? new Set<string>();
 
     // Remove stale specifier entries for this URI
     for (const spec of oldSpecifiers) {
@@ -269,6 +291,11 @@ export class SymbolIndex
       this.upsertFunction(fn);
     }
     this.upsertImports(uri, result.imports);
+    if (result.setupProps) {
+      for (const { componentName, props } of result.setupProps) {
+        this.upsertSetupProps(componentName, uri, props);
+      }
+    }
   }
 
   // ─── Removal ─────────────────────────────────────────────────────────
@@ -358,7 +385,11 @@ export class SymbolIndex
 
   // ─── Setup Props methods (PERF-09) ───────────────────────────────────
 
-  upsertSetupProps(componentName: string, uri: string, props: SetupPropertyAssignment[]): void {
+  upsertSetupProps(
+    componentName: string,
+    uri: string,
+    props: SetupPropertyAssignment[],
+  ): void {
     const key = setupPropsKey(componentName, uri);
     this.setupPropsByComponent.set(key, props);
     // PERF-02: Use Set for O(1) membership check instead of Array.includes
@@ -369,7 +400,10 @@ export class SymbolIndex
     }
   }
 
-  getSetupProps(componentName: string, uri: string): SetupPropertyAssignment[] | undefined {
+  getSetupProps(
+    componentName: string,
+    uri: string,
+  ): SetupPropertyAssignment[] | undefined {
     return this.setupPropsByComponent.get(setupPropsKey(componentName, uri));
   }
 

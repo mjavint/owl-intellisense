@@ -1,13 +1,14 @@
-import { Range } from 'vscode-languageserver-types';
+import { Range } from "vscode-languageserver-types";
 
 // ─── PERF-01: Completion context discriminated union ─────────────────────────
 
 export type CompletionContext =
-  | { kind: 'setup'; componentName: string }
-  | { kind: 'staticComponents' }
-  | { kind: 'thisProperty'; propertyChain: string[] }
-  | { kind: 'useService'; serviceClass: string | null }
-  | { kind: 'unknown' };
+  | { kind: "setup"; componentName: string }
+  | { kind: "staticComponents" }
+  | { kind: "thisProperty"; propertyChain: string[] }
+  | { kind: "useService"; serviceClass: string | null }
+  | { kind: "registryKey"; category: string; partial: string }
+  | { kind: "unknown" };
 
 // ─── PERF-02: Completion item data payload ────────────────────────────────────
 
@@ -44,24 +45,24 @@ export interface OWLHook {
 }
 
 export interface AddonInfo {
-  name: string;         // addon name (e.g. 'web', 'mail')
-  root: string;         // absolute path to addon root
+  name: string; // addon name (e.g. 'web', 'mail')
+  root: string; // absolute path to addon root
   staticSrcPath: string; // absolute path to addon/static/src
 }
 
 export type AliasMap = Map<string, string>; // '@web' → '/path/to/web/static/src'
 
 export interface OdooService {
-  name: string;         // service name as registered (e.g. 'orm', 'notification')
-  localName: string;    // JS identifier name
+  name: string; // service name as registered (e.g. 'orm', 'notification')
+  localName: string; // JS identifier name
   filePath: string;
   uri: string;
   range: Range;
 }
 
 export interface OdooRegistry {
-  category: string;     // e.g. 'actions', 'views', 'services'
-  key: string;          // registered key
+  category: string; // e.g. 'actions', 'views', 'services'
+  key: string; // registered key
   localName: string;
   filePath: string;
   uri: string;
@@ -76,12 +77,13 @@ export interface ExportedFunction {
   isDefault: boolean;
   signature?: string;
   jsDoc?: string;
+  isCallable?: boolean;
 }
 
 export interface ImportRecord {
-  specifier: string;    // imported name
-  source: string;       // from '...' value
-  localName: string;    // local binding name
+  specifier: string; // imported name
+  source: string; // from '...' value
+  localName: string; // local binding name
   uri: string;
   range: Range;
 }
@@ -92,9 +94,21 @@ export interface ImportRecord {
  *   { name: 'myState', hookName: 'useState', hookReturns: 'T' }
  */
 export interface SetupPropertyAssignment {
-  name: string;           // property name (this.XXX)
-  hookName?: string;      // hook function called on the RHS (if any)
-  hookReturns?: string;   // return-type string from HOOK_RETURN_TYPES (if hookName is known)
+  name: string; // property name (this.XXX)
+  hookName?: string; // hook function called on the RHS (if any)
+  hookReturns?: string; // return-type string from HOOK_RETURN_TYPES (if hookName is known)
+  stateShape?: Record<string, string>; // key→type map for useState({...}) initial object
+  serviceArg?: string; // 'orm', 'rpc', etc. when hookName === 'useService'
+}
+
+/**
+ * Associates a component's name and URI with the setup property assignments
+ * extracted from its setup() method body.
+ */
+export interface SetupPropsResult {
+  componentName: string;
+  uri: string;
+  props: SetupPropertyAssignment[];
 }
 
 // ─── SOLID ISP: Narrow read interfaces ──────────────────────────────────────
@@ -110,7 +124,10 @@ export interface IFunctionReader {
   getAllFunctions(): IterableIterator<ExportedFunction>;
   registerSourceAlias(source: string, fileUri: string): void;
   getSourceAliasUris(source: string): string[];
-  getFunctionBySource(source: string, name: string): ExportedFunction | undefined;
+  getFunctionBySource(
+    source: string,
+    name: string,
+  ): ExportedFunction | undefined;
 }
 
 export interface IServiceReader {
@@ -130,7 +147,10 @@ export interface IImportReader {
 }
 
 export interface ISetupPropReader {
-  getSetupProps(componentName: string, uri: string): SetupPropertyAssignment[] | undefined;
+  getSetupProps(
+    componentName: string,
+    uri: string,
+  ): SetupPropertyAssignment[] | undefined;
 }
 
 /**
@@ -164,6 +184,7 @@ export interface ParseResult {
   functions: ExportedFunction[];
   imports: ImportRecord[];
   diagnostics: ParseDiagnostic[];
+  setupProps?: SetupPropsResult[];
 }
 
 export interface ParseDiagnostic {
@@ -173,9 +194,9 @@ export interface ParseDiagnostic {
 }
 
 export namespace OwlNotifications {
-  export const ScanStarted = 'owl/scanStarted';
-  export const ScanProgress = 'owl/scanProgress';
-  export const ScanComplete = 'owl/scanComplete';
+  export const ScanStarted = "owl/scanStarted";
+  export const ScanProgress = "owl/scanProgress";
+  export const ScanComplete = "owl/scanComplete";
 
   export interface ScanProgressParams {
     scannedFiles: number;

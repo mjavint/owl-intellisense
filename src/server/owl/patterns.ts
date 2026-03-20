@@ -578,6 +578,7 @@ export function extractExportedFunctions(
             isDefault: false,
             signature: `const ${name}`,
             jsDoc,
+            isCallable: false,
           });
         }
       }
@@ -773,7 +774,7 @@ export const HOOK_RETURN_TYPES: Record<string, string> = {
  * Covers REQ-05 / SC-05.1 and SC-05.3.
  */
 export function extractSetupProperties(
-  ast: TSESTree.Program,
+  ast: TSESTree.Program | TSESTree.ClassDeclaration | TSESTree.ClassExpression,
 ): SetupPropertyAssignment[] {
   const results: SetupPropertyAssignment[] = [];
 
@@ -829,10 +830,60 @@ export function extractSetupProperties(
           }
         }
 
+        let stateShape: Record<string, string> | undefined;
+        if (hookName === "useState" && right?.["type"] === "CallExpression") {
+          const callArgs = right["arguments"] as Record<string, unknown>[];
+          const firstArg = callArgs?.[0];
+          if (firstArg?.["type"] === "ObjectExpression") {
+            const shape: Record<string, string> = {};
+            const properties = firstArg["properties"] as Record<
+              string,
+              unknown
+            >[];
+            for (const prop of properties) {
+              if (prop["type"] === "Property") {
+                const key = prop["key"] as Record<string, unknown>;
+                if (key["type"] === "Identifier") {
+                  const keyName = key["name"] as string;
+                  const value = prop["value"] as Record<string, unknown>;
+                  let valueType = "unknown";
+                  if (value["type"] === "Literal") {
+                    valueType = typeof value["value"];
+                  } else if (value["type"] === "ArrayExpression") {
+                    valueType = "Array";
+                  } else if (value["type"] === "ObjectExpression") {
+                    valueType = "object";
+                  } else if (value["type"] === "Identifier") {
+                    valueType = value["name"] as string;
+                  }
+                  shape[keyName] = valueType;
+                }
+              }
+            }
+            if (Object.keys(shape).length > 0) {
+              stateShape = shape;
+            }
+          }
+        }
+
+        let serviceArg: string | undefined;
+        if (hookName === "useService" && right?.["type"] === "CallExpression") {
+          const callArgs = right["arguments"] as Record<string, unknown>[];
+          const firstArg = callArgs?.[0];
+          if (
+            firstArg?.["type"] === "Literal" &&
+            typeof firstArg["value"] === "string"
+          ) {
+            serviceArg = firstArg["value"] as string;
+          }
+        }
+
         results.push({
           name: propName,
           hookName,
           hookReturns: hookName ? HOOK_RETURN_TYPES[hookName] : undefined,
+          stateShape,
+          serviceArg,
         });
       }
     }
