@@ -653,18 +653,19 @@ suite('4.10 hover.ts — bounded line read (PERF-10)', () => {
   }
 
   test('hover resolves word at character 10 on a 500-char line (not capped at 110)', () => {
-    // Build a line: "xxxxxxx...x useState xxxxxxx..." 500 chars
-    // Place 'useState' starting at character 10
+    // Build a line: "          useState                   ..." ~500 chars
+    // Use spaces as padding so word-boundary detection isolates 'useState'.
+    // 'x' chars would merge with 'useState' since both match \w.
     const word = 'useState';
-    const prefix = 'x'.repeat(10);
-    const suffix = 'x'.repeat(500 - prefix.length - word.length);
+    const prefix = ' '.repeat(10); // 10 spaces before the word
+    const suffix = ' '.repeat(500 - prefix.length - word.length);
     const line = prefix + word + suffix;
     const doc = makeHoverDoc(line);
     const index = new SymbolIndex();
 
     const params: TextDocumentPositionParams = {
       textDocument: { uri: doc.uri },
-      position: { line: 0, character: 12 }, // inside 'useState'
+      position: { line: 0, character: 12 }, // inside 'useState' (starts at 10)
     };
 
     const result = onHover(params, doc, index);
@@ -688,10 +689,12 @@ suite('4.10 hover.ts — bounded line read (PERF-10)', () => {
   });
 
   test('hover at cursor position 10 on a 500-char line: reads past position 110', () => {
-    // We verify that hover still resolves a word placed far beyond position 110
+    // We verify that hover still resolves a word placed far beyond position 110.
+    // Use spaces as padding so word-boundary detection isolates 'useState'.
+    // 'x' chars would merge with 'useState' since both match \w.
     const wordAt = 200; // word starts well past character 110
     const word = 'useState';
-    const line = 'x'.repeat(wordAt) + word + 'x'.repeat(500 - wordAt - word.length);
+    const line = ' '.repeat(wordAt) + word + ' '.repeat(500 - wordAt - word.length);
     const doc = makeHoverDoc(line);
     const index = new SymbolIndex();
 
