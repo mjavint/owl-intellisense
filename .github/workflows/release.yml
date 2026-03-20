@@ -47,7 +47,7 @@ jobs:
           path: "*.vsix"
 
       - name: Publish to Marketplace
-        run: npx @vscode/vsce publish --publisher mvintg
+        run: npx @vscode/vsce publish
         env:
           VSCE_PAT: ${{ secrets.VS_MARKETPLACE_TOKEN }}
 
