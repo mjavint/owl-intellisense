@@ -35,13 +35,21 @@ jobs:
         run: xvfb-run --auto-servernum pnpm test
 
       - name: Build extension
-        run: pnpm package
+        run: pnpm run package
 
       - name: Package VSIX
-        run: pnpm dlx vsce package --no-dependencies
+        run: npx @vscode/vsce package --no-dependencies
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: owl-lsp-vsix
+          path: "*.vsix"
 
       - name: Publish to Marketplace
-        run: pnpm dlx vsce publish -p ${{ secrets.VS_MARKETPLACE_TOKEN }}
+        run: npx @vscode/vsce publish --publisher mvintg
+        env:
+          VSCE_PAT: ${{ secrets.VS_MARKETPLACE_TOKEN }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

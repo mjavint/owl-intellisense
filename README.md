@@ -157,3 +157,9 @@ Aliases are used in completions, hover tooltips, code actions, and diagnostics a
 ### Debugging
 
 The LSP server can be debugged by attaching to port `6009`.
+
+---
+
+## 📄 License
+
+This extension is licensed under the [MIT License](LICENSE).
