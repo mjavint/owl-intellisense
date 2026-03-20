@@ -3,11 +3,20 @@
   "displayName": "OWL LSP",
   "description": "Language Server Protocol for OWL 2.x (Odoo Web Library) — completions, hover, go-to-definition, diagnostics, and more",
   "version": "0.0.1",
+  "icon": "icon.png",
+  "publisher": "mvintg",
+  "homepage": "https://github.com/mjavint/owl-lsp",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mjavint/owl-lsp"
+  },
+  "qna": "https://github.com/mjavint/owl-lsp/issues",
   "engines": {
     "vscode": "^1.110.0"
   },
   "categories": [
-    "Other"
+    "Programming Languages",
+    "Linters"
   ],
   "activationEvents": [
     "onLanguage:javascript",

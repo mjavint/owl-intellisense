@@ -9,6 +9,7 @@ Provides intelligent code editing by scanning Odoo addon sources and building a 
 ## Features
 
 ### Auto-completion
+
 - **OWL built-in hooks** inside `setup()` — `useState`, `onMounted`, `useService`, `onWillStart`, etc.
 - **Custom hooks** from addon sources — `usePopover`, `useChildRef` and any `use*` function indexed from your workspace
 - **Utility functions** from addon files — `patch`, `url`, `browser`, `debounce`, `escape`, `markup`, `sprintf`, etc.
@@ -18,17 +19,20 @@ Provides intelligent code editing by scanning Odoo addon sources and building a 
 - **Auto-import on accept** — imports are automatically inserted or merged using `@addon/` aliases
 
 ### Hover Documentation
+
 - OWL hooks: full signature, description and return type
 - Workspace components: props summary with types and optional flags
 - Addon functions: JSDoc, signature and source alias path
 
 ### Go-to-Definition
+
 - Jump to OWL component class declarations
 - Resolve import specifiers (`{ MyComponent }`) to their source file
 - Resolve import paths to actual files
 - Supports `@addon/` alias resolution out of the box
 
 ### Find References
+
 - Cross-file references for components, OWL hooks and exported functions
 - Import-site tracking via the workspace symbol index
 
@@ -56,27 +60,34 @@ Provides intelligent code editing by scanning Odoo addon sources and building a 
 | `owl/duplicate-import-specifier` | Warning | Same symbol imported multiple times |
 
 ### Code Actions (Quick Fixes)
+
 - **Auto-import** any OWL hook, component or utility function
 - **Merge imports** — never creates duplicates; merges into existing imports sorted alphabetically
 - **Normalize import paths** — convert long relative paths to `@addon/` aliases
 
 ### Document & Workspace Symbols
+
 - List all OWL components in the current file
 - Search components across the entire workspace
 
 ### Rename
+
 - Rename OWL components across all files (imports + usages)
 
 ### Signature Help
+
 - Shows function signature when typing inside function calls
 
 ### Inlay Hints
+
 - Type annotations for props in component templates
 
 ### Semantic Tokens
+
 - Syntax highlighting for OWL-specific constructs
 
 ### Real-time Scan Status Bar
+
 - Shows scanning progress: `⟳ OWL: 150/320 files | 24 components, 8 services, 42 utilities`
 - Disappears automatically 5 seconds after scan completes
 
@@ -120,6 +131,7 @@ Aliases are used in completions, hover tooltips, code actions, and diagnostics a
 | `owlLsp.trace.server` | enum | `"off"` | LSP trace level: `off`, `messages`, `verbose` |
 
 **Default scan excludes:**
+
 ```json
 [
   "**/node_modules/**",
@@ -142,70 +154,6 @@ Aliases are used in completions, hover tooltips, code actions, and diagnostics a
 |---------|-------------|
 | `OWL LSP: Restart Server` | Restart the LSP server (useful after adding new addons) |
 
----
-
-## Development
-
-### Scripts
-
-| Script | Description |
-|--------|-------------|
-| `npm run compile` | Type-check, lint, and build with esbuild |
-| `npm run watch` | Watch mode for development |
-| `npm run package` | Production build (check-types + lint + esbuild) |
-| `npm test` | Run the test suite |
-| `npm run lint` | Run ESLint |
-| `npm run check-types` | Run TypeScript type checking |
-
 ### Debugging
 
 The LSP server can be debugged by attaching to port `6009`.
-
----
-
-## Architecture
-
-The extension uses a client/server LSP architecture:
-
-- **Client** (`dist/client/extension.js`) — VSCode extension host process; manages the status bar and starts the server
-- **Server** (`dist/server/server.js`) — standalone Node.js LSP server; owns the symbol index, AST parser, workspace scanner and all language features
-
-The server process communicates with VSCode via IPC transport.
-
-### Directory Structure
-
-```
-src/
-├── client/
-│   ├── client.ts          # Language client setup
-│   └── extension.ts       # VSCode extension entry
-├── server/
-│   ├── server.ts          # LSP connection and request routing
-│   ├── analyzer/          # Symbol index and workspace scanner
-│   ├── features/          # LSP features
-│   │   ├── completion/     # Auto-completion (split into contexts)
-│   │   ├── rules/         # Static analysis rules
-│   │   └── *.ts           # Hover, definition, references, etc.
-│   ├── owl/               # OWL-specific static data catalog
-│   ├── patterns/          # AST extraction patterns (split by domain)
-│   ├── resolver/           # Path and alias resolution
-│   ├── shared/            # Shared utilities, types, RequestContext
-│   └── utils/             # Import utilities
-└── shared/
-    └── types.ts           # Shared TypeScript interfaces
-```
-
----
-
-## Release Notes
-
-### 0.1.0
-
-Initial release:
-- LSP client/server split with IPC transport
-- AST-based workspace scanner for Odoo addon sources
-- Symbol index: components, services, registries, functions, imports
-- Completion, hover, definition, references, symbols, diagnostics, code actions
-- OWL `@addon/` alias resolution
-- 18 static analysis rules
-- Real-time status bar scanning progress

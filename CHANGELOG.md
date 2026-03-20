@@ -1,9 +1,15 @@
 # Change Log
 
-All notable changes to the "owl-lsp" extension will be documented in this file.
+## Release Notes
 
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
+### 0.1.0 - (2024-06-30)
 
-## [Unreleased]
+Initial release:
 
-- Initial release
+- LSP client/server split with IPC transport
+- AST-based workspace scanner for Odoo addon sources
+- Symbol index: components, services, registries, functions, imports
+- Completion, hover, definition, references, symbols, diagnostics, code actions
+- OWL `@addon/` alias resolution
+- 18 static analysis rules
+- Real-time status bar scanning progress
