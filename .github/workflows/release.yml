@@ -7,18 +7,20 @@ on:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+
+      - name: Disable npm exit handlers
+        run: npm config set script-shell "bash -e"
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --prefer-offline --no-audit --progress=false
 
       - name: Lint
         run: npm run lint
@@ -37,11 +39,9 @@ jobs:
 
       - name: Publish to Marketplace
         run: vsce publish -p ${{ secrets.VS_MARKETPLACE_TOKEN }}
-        env:
-          VSCE_TOKEN: ${{ secrets.VS_MARKETPLACE_TOKEN }}
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: '*.vsix'
         env:

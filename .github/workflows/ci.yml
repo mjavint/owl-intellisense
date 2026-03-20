@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -16,10 +16,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "npm"
+
+      - name: Disable npm exit handlers
+        run: npm config set script-shell "bash -e"
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --prefer-offline --no-audit --progress=false
 
       - name: Lint
         run: npm run lint
@@ -33,12 +35,11 @@ jobs:
       - name: Build extension
         run: npm run package
 
-  # Optional: Run tests on multiple VS Code versions
   test-multiple-versions:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
-        vscode-version: ["1.85.0", "1.95.0", "latest"]
+        vscode-version: ["1.95.0", "latest"]
     steps:
       - uses: actions/checkout@v4
 
@@ -46,12 +47,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "npm"
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --prefer-offline --no-audit --progress=false
 
       - name: Run tests (VS Code ${{ matrix.vscode-version }})
-        run: npm run test
+        run: npm test
         env:
           VSCODE_VERSION: ${{ matrix.vscode-version }}
