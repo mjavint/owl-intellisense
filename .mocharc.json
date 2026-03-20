@@ -1,0 +1,5 @@
+{
+  "extension": ["js"],
+  "spec": "out/test/**/*.test.js",
+  "require": ["source-map-support/register"]
+}
