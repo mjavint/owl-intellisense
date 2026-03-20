@@ -110,5 +110,4 @@ export function parseFile(content: string, uri: string): ParseResult {
   };
 }
 
-// Re-export parse for callers that need to cache the AST
-export { parse };
+

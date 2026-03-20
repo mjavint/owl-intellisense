@@ -36,6 +36,8 @@ import {
 
 import { SymbolIndex } from '../server/analyzer/index';
 import { OdooService, OdooRegistry, ParseResult } from '../shared/types';
+import { createRequestContext } from '../server/shared/requestContext';
+import { typeResolver } from '../server/features/definition';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -77,6 +79,10 @@ function makeRegistry(category: string, key: string): OdooRegistry {
 
 function makeParseResult(uri: string, services: OdooService[], registries: OdooRegistry[]): ParseResult {
   return { uri, components: [], services, registries, functions: [], imports: [], diagnostics: [] };
+}
+
+function makeContext(doc: TextDocument, index: SymbolIndex) {
+  return createRequestContext(doc, index, undefined, false, typeResolver);
 }
 
 // ─── 4.1: extractSetupProperties + HOOK_RETURN_TYPES ─────────────────────────
@@ -372,7 +378,7 @@ class MyComp extends Component {
     index.upsertFileSymbols('file:///svc.ts', makeParseResult('file:///svc.ts', [svc], []));
 
     const doc = makeSetupDoc(`this.orm = useService('`);
-    const items = onCompletion(posAtEnd(doc), doc, index);
+    const items = onCompletion(posAtEnd(doc), makeContext(doc, index));
     const ormItem = items.find(i => i.label === 'orm');
     assert.ok(ormItem, 'orm service should appear in completions');
     assert.ok(ormItem!.detail?.includes('orm'), 'detail should reference service file');
@@ -383,7 +389,7 @@ class MyComp extends Component {
     const doc = makeSetupDoc(`this.x = useService('`);
     let items: ReturnType<typeof onCompletion>;
     assert.doesNotThrow(() => {
-      items = onCompletion(posAtEnd(doc), doc, index);
+      items = onCompletion(posAtEnd(doc), makeContext(doc, index));
     });
     assert.ok(Array.isArray(items!), 'result should be an array');
     assert.strictEqual(items!.length, 0, 'should be empty when no services');
@@ -396,7 +402,7 @@ class MyComp extends Component {
 
     // Cursor after the closing paren — not inside a string arg
     const doc = makeSetupDoc(`this.n = useService('notification'); `);
-    const items = onCompletion(posAtEnd(doc), doc, index);
+    const items = onCompletion(posAtEnd(doc), makeContext(doc, index));
     const serviceItems = items.filter(i => i.label === 'notification' && i.detail?.includes('svc'));
     assert.strictEqual(serviceItems.length, 0, 'should not offer service names outside string arg');
   });
@@ -407,7 +413,7 @@ class MyComp extends Component {
     index.upsertFileSymbols('file:///svcs.ts', makeParseResult('file:///svcs.ts', services, []));
 
     const doc = makeSetupDoc(`this.x = useService('`);
-    const items = onCompletion(posAtEnd(doc), doc, index);
+    const items = onCompletion(posAtEnd(doc), makeContext(doc, index));
     const labels = items.map(i => i.label);
     assert.ok(labels.includes('orm'), 'orm should be offered');
     assert.ok(labels.includes('notification'), 'notification should be offered');
@@ -431,7 +437,7 @@ class MyComp extends Component {
     index.upsertFileSymbols('file:///reg.ts', makeParseResult('file:///reg.ts', [], [reg]));
 
     const doc = makeSetupDoc(`const cat = registry.category('`);
-    const items = onCompletion(posAtEnd(doc), doc, index);
+    const items = onCompletion(posAtEnd(doc), makeContext(doc, index));
     const viewsItem = items.find(i => i.label === 'views');
     assert.ok(viewsItem, '"views" category should appear in completions');
   });
@@ -446,7 +452,7 @@ class MyComp extends Component {
     index.upsertFileSymbols('file:///reg.ts', makeParseResult('file:///reg.ts', [], regs));
 
     const doc = makeSetupDoc(`const x = registry.category('`);
-    const items = onCompletion(posAtEnd(doc), doc, index);
+    const items = onCompletion(posAtEnd(doc), makeContext(doc, index));
     const labels = items.map(i => i.label);
     assert.ok(labels.includes('views'), 'views should be offered');
     assert.ok(labels.includes('actions'), 'actions should be offered');
@@ -464,7 +470,7 @@ class MyComp extends Component {
     myProp: `;
     const doc = makeDoc(content);
     const index = makeIndex();
-    const items = onCompletion(posAtEnd(doc), doc, index);
+    const items = onCompletion(posAtEnd(doc), makeContext(doc, index));
     const stringItem = items.find(i => i.label === 'String');
     assert.ok(stringItem, 'String should be offered inside static props');
   });
@@ -476,7 +482,7 @@ class MyComp extends Component {
     myProp: `;
     const doc = makeDoc(content);
     const index = makeIndex();
-    const items = onCompletion(posAtEnd(doc), doc, index);
+    const items = onCompletion(posAtEnd(doc), makeContext(doc, index));
     const labels = items.map(i => i.label);
     for (const expected of OWL_PROP_TYPE_ITEMS.map(i => i.label)) {
       assert.ok(labels.includes(expected), `${expected} should be in prop completions`);
@@ -490,7 +496,7 @@ class MyComp extends Component {
     myProp: `;
     const doc = makeDoc(content);
     const index = makeIndex();
-    const items = onCompletion(posAtEnd(doc), doc, index);
+    const items = onCompletion(posAtEnd(doc), makeContext(doc, index));
     const staticTemplate = items.find(i => i.label === 'static template');
     assert.strictEqual(staticTemplate, undefined, 'static template snippet should NOT appear inside props');
   });
@@ -505,7 +511,7 @@ class MyComp extends Component {
   `;
     const doc = makeDoc(content);
     const index = makeIndex();
-    const items = onCompletion(posAtEnd(doc), doc, index);
+    const items = onCompletion(posAtEnd(doc), makeContext(doc, index));
     const staticTemplate = items.find(i => i.label === 'static template');
     assert.ok(staticTemplate, 'static template snippet should be offered at class body level');
   });
@@ -516,7 +522,7 @@ class MyComp extends Component {
   `;
     const doc = makeDoc(content);
     const index = makeIndex();
-    const items = onCompletion(posAtEnd(doc), doc, index);
+    const items = onCompletion(posAtEnd(doc), makeContext(doc, index));
     const labels = items.map(i => i.label);
     for (const snippet of STATIC_MEMBER_SNIPPETS) {
       assert.ok(labels.includes(snippet.label), `${snippet.label} should appear at class body level`);
@@ -530,7 +536,7 @@ class MyComp extends Component {
     `;
     const doc = makeDoc(content);
     const index = makeIndex();
-    const items = onCompletion(posAtEnd(doc), doc, index);
+    const items = onCompletion(posAtEnd(doc), makeContext(doc, index));
     const staticTemplate = items.find(i => i.label === 'static template');
     assert.strictEqual(staticTemplate, undefined, 'static template should NOT appear inside a method');
   });

@@ -191,8 +191,11 @@ export function findOwlLibraryFiles(addons: AddonInfo[]): {
  */
 export function resolveAlias(
   importPath: string,
-  aliasMap: Map<string, string>,
+  aliasMap: Map<string, string> | undefined,
 ): string | undefined {
+  if (!aliasMap) {
+    return undefined;
+  }
   for (const [alias, target] of aliasMap) {
     if (importPath === alias || importPath.startsWith(alias + "/")) {
       // File-level alias: target points directly to a file (not a directory)

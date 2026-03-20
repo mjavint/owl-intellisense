@@ -23,6 +23,7 @@ import {
 } from "vscode-languageserver/node";
 
 import { onHover } from "../server/features/hover";
+import { typeResolver } from "../server/features/definition";
 import {
   OwlComponent,
   ExportedFunction,
@@ -31,6 +32,7 @@ import {
   IServiceReader,
   IRegistryReader,
 } from "../shared/types";
+import { createRequestContext } from "../server/shared/requestContext";
 
 /**
  * Narrow the Hover.contents union to MarkupContent so TypeScript is happy.
@@ -132,6 +134,13 @@ function makeIndex(
   };
 }
 
+function makeContext(
+  doc: TextDocument,
+  index: IComponentReader & IFunctionReader & IServiceReader & IRegistryReader
+) {
+  return createRequestContext(doc, index as any, undefined, false, typeResolver);
+}
+
 // ─── OWL Hook hover ───────────────────────────────────────────────────────────
 
 suite("onHover — OWL hook catalog", () => {
@@ -140,7 +149,7 @@ suite("onHover — OWL hook catalog", () => {
   test("lifecycle hook onMounted → returns Markdown with lifecycle label", () => {
     const doc = makeDoc("onMounted");
     const params = makeParams(doc, 0, 3);
-    const result = onHover(params, doc, emptyIndex);
+    const result = onHover(params, makeContext(doc, emptyIndex));
 
     assert.ok(result, "should return a Hover for onMounted");
     assert.strictEqual(hoverContents(result!).kind, MarkupKind.Markdown);
@@ -157,7 +166,7 @@ suite("onHover — OWL hook catalog", () => {
   test("utility hook useState → returns Markdown with utility label", () => {
     const doc = makeDoc("useState");
     const params = makeParams(doc, 0, 3);
-    const result = onHover(params, doc, emptyIndex);
+    const result = onHover(params, makeContext(doc, emptyIndex));
 
     assert.ok(result, "should return a Hover for useState");
     assert.strictEqual(hoverContents(result!).kind, MarkupKind.Markdown);
@@ -174,7 +183,7 @@ suite("onHover — OWL hook catalog", () => {
   test("utility hook useState → includes Returns field", () => {
     const doc = makeDoc("useState");
     const params = makeParams(doc, 0, 3);
-    const result = onHover(params, doc, emptyIndex);
+    const result = onHover(params, makeContext(doc, emptyIndex));
 
     assert.ok(result, "should return a Hover");
     assert.ok(
@@ -186,7 +195,7 @@ suite("onHover — OWL hook catalog", () => {
   test("utility hook useEffect → does NOT include Returns field (no returns defined)", () => {
     const doc = makeDoc("useEffect");
     const params = makeParams(doc, 0, 3);
-    const result = onHover(params, doc, emptyIndex);
+    const result = onHover(params, makeContext(doc, emptyIndex));
 
     assert.ok(result, "should return a Hover for useEffect");
     // useEffect has no `returns` field in the catalog
@@ -199,7 +208,7 @@ suite("onHover — OWL hook catalog", () => {
   test("hook hover includes signature in code fence", () => {
     const doc = makeDoc("useRef");
     const params = makeParams(doc, 0, 3);
-    const result = onHover(params, doc, emptyIndex);
+    const result = onHover(params, makeContext(doc, emptyIndex));
 
     assert.ok(result, "should return a Hover for useRef");
     assert.ok(
@@ -215,7 +224,7 @@ suite("onHover — OWL hook catalog", () => {
   test("lifecycle hook onWillStart → lifecycle label present", () => {
     const doc = makeDoc("onWillStart");
     const params = makeParams(doc, 0, 5);
-    const result = onHover(params, doc, emptyIndex);
+    const result = onHover(params, makeContext(doc, emptyIndex));
 
     assert.ok(result, "should return a Hover");
     assert.ok(hoverContents(result!).value.includes("Lifecycle hook"));
@@ -245,7 +254,7 @@ suite("onHover — OWL hook catalog", () => {
     for (const hookName of hooks) {
       const doc = makeDoc(hookName);
       const params = makeParams(doc, 0, 3);
-      const result = onHover(params, doc, emptyIndex);
+      const result = onHover(params, makeContext(doc, emptyIndex));
       assert.ok(result, `hook ${hookName} should produce a non-null Hover`);
     }
   });
@@ -259,7 +268,7 @@ suite("onHover — OWL class catalog", () => {
   test("Component → returns OWL class Markdown", () => {
     const doc = makeDoc("Component");
     const params = makeParams(doc, 0, 3);
-    const result = onHover(params, doc, emptyIndex);
+    const result = onHover(params, makeContext(doc, emptyIndex));
 
     assert.ok(result, "should return a Hover for Component");
     assert.strictEqual(hoverContents(result!).kind, MarkupKind.Markdown);
@@ -273,7 +282,7 @@ suite("onHover — OWL class catalog", () => {
   test("App → returns OWL class Markdown", () => {
     const doc = makeDoc("App");
     const params = makeParams(doc, 0, 1);
-    const result = onHover(params, doc, emptyIndex);
+    const result = onHover(params, makeContext(doc, emptyIndex));
 
     assert.ok(result, "should return a Hover for App");
     assert.ok(hoverContents(result!).value.includes("App"));
@@ -283,7 +292,7 @@ suite("onHover — OWL class catalog", () => {
   test("EventBus → returns OWL class Markdown", () => {
     const doc = makeDoc("EventBus");
     const params = makeParams(doc, 0, 4);
-    const result = onHover(params, doc, emptyIndex);
+    const result = onHover(params, makeContext(doc, emptyIndex));
 
     assert.ok(result, "should return a Hover for EventBus");
     assert.ok(hoverContents(result!).value.includes("EventBus"));
@@ -292,7 +301,7 @@ suite("onHover — OWL class catalog", () => {
   test("OWL class hover includes signature in code fence", () => {
     const doc = makeDoc("Component");
     const params = makeParams(doc, 0, 3);
-    const result = onHover(params, doc, emptyIndex);
+    const result = onHover(params, makeContext(doc, emptyIndex));
 
     assert.ok(result);
     assert.ok(hoverContents(result!).value.includes("```typescript"));
@@ -301,7 +310,7 @@ suite("onHover — OWL class catalog", () => {
   test("OWL class hover references @odoo/owl import source", () => {
     const doc = makeDoc("reactive");
     const params = makeParams(doc, 0, 3);
-    const result = onHover(params, doc, emptyIndex);
+    const result = onHover(params, makeContext(doc, emptyIndex));
 
     assert.ok(result);
     assert.ok(hoverContents(result!).value.includes("@odoo/owl"));
@@ -319,7 +328,7 @@ suite("onHover — workspace function index", () => {
     const index = makeIndex([], [fn]);
     const doc = makeDoc("myHelper");
     const params = makeParams(doc, 0, 3);
-    const result = onHover(params, doc, index);
+    const result = onHover(params, makeContext(doc, index));
 
     assert.ok(result, "should return a Hover for the workspace function");
     assert.ok(hoverContents(result!).value.includes("myHelper"));
@@ -338,7 +347,7 @@ suite("onHover — workspace function index", () => {
     const index = makeIndex([], [fn]);
     const doc = makeDoc("simpleUtil");
     const params = makeParams(doc, 0, 5);
-    const result = onHover(params, doc, index);
+    const result = onHover(params, makeContext(doc, index));
 
     assert.ok(result, "should return a Hover even without signature");
     assert.ok(hoverContents(result!).value.includes("simpleUtil"));
@@ -349,7 +358,7 @@ suite("onHover — workspace function index", () => {
     const index = makeIndex([], [fn]);
     const doc = makeDoc("myUtil");
     const params = makeParams(doc, 0, 3);
-    const result = onHover(params, doc, index);
+    const result = onHover(params, makeContext(doc, index));
 
     assert.ok(result);
     assert.ok(
@@ -374,7 +383,7 @@ suite("onHover — workspace component index", () => {
     const index = makeIndex([comp]);
     const doc = makeDoc("MyWidget");
     const params = makeParams(doc, 0, 3);
-    const result = onHover(params, doc, index);
+    const result = onHover(params, makeContext(doc, index));
 
     assert.ok(result, "should return a Hover for the component");
     assert.ok(hoverContents(result!).value.includes("MyWidget"));
@@ -389,7 +398,7 @@ suite("onHover — workspace component index", () => {
     const index = makeIndex([comp]);
     const doc = makeDoc("EmptyWidget");
     const params = makeParams(doc, 0, 5);
-    const result = onHover(params, doc, index);
+    const result = onHover(params, makeContext(doc, index));
 
     assert.ok(result);
     assert.ok(
@@ -403,7 +412,7 @@ suite("onHover — workspace component index", () => {
     const index = makeIndex([comp]);
     const doc = makeDoc("NavBar");
     const params = makeParams(doc, 0, 3);
-    const result = onHover(params, doc, index);
+    const result = onHover(params, makeContext(doc, index));
 
     assert.ok(result);
     assert.ok(
@@ -421,7 +430,7 @@ suite("onHover — workspace component index", () => {
     const index = makeIndex([comp]);
     const doc = makeDoc("Plain");
     const params = makeParams(doc, 0, 2);
-    const result = onHover(params, doc, index);
+    const result = onHover(params, makeContext(doc, index));
 
     assert.ok(result);
     assert.ok(
@@ -435,7 +444,7 @@ suite("onHover — workspace component index", () => {
     const index = makeIndex([comp]);
     const doc = makeDoc("Dashboard");
     const params = makeParams(doc, 0, 4);
-    const result = onHover(params, doc, index);
+    const result = onHover(params, makeContext(doc, index));
 
     assert.ok(result);
     assert.ok(hoverContents(result!).value.includes("**File:**"));
@@ -450,7 +459,7 @@ suite("onHover — workspace component index", () => {
     const index = makeIndex([comp]);
     const doc = makeDoc("PropWidget");
     const params = makeParams(doc, 0, 3);
-    const result = onHover(params, doc, index);
+    const result = onHover(params, makeContext(doc, index));
 
     assert.ok(result);
     assert.ok(hoverContents(result!).value.includes("✓"), "optional prop should show checkmark");
@@ -466,21 +475,21 @@ suite("onHover — null cases", () => {
   test("unknown word not in catalog or index → returns null", () => {
     const doc = makeDoc("unknownXyzWord");
     const params = makeParams(doc, 0, 5);
-    const result = onHover(params, doc, emptyIndex);
+    const result = onHover(params, makeContext(doc, emptyIndex));
     assert.strictEqual(result, null);
   });
 
   test("cursor on whitespace only → returns null", () => {
     const doc = makeDoc("   ");
     const params = makeParams(doc, 0, 1);
-    const result = onHover(params, doc, emptyIndex);
+    const result = onHover(params, makeContext(doc, emptyIndex));
     assert.strictEqual(result, null);
   });
 
   test("empty document line → returns null", () => {
     const doc = makeDoc("");
     const params = makeParams(doc, 0, 0);
-    const result = onHover(params, doc, emptyIndex);
+    const result = onHover(params, makeContext(doc, emptyIndex));
     assert.strictEqual(result, null);
   });
 });
@@ -494,7 +503,7 @@ suite("onHover — cursor position edge cases", () => {
     const doc = makeDoc("onMounted();");
     // character 0 — left edge of 'onMounted'
     const params = makeParams(doc, 0, 0);
-    const result = onHover(params, doc, emptyIndex);
+    const result = onHover(params, makeContext(doc, emptyIndex));
     assert.ok(result, "hovering at start of hook name should work");
     assert.ok(hoverContents(result!).value.includes("onMounted"));
   });
@@ -503,7 +512,7 @@ suite("onHover — cursor position edge cases", () => {
     const doc = makeDoc("onMounted");
     // character 9 — right after last char (boundary)
     const params = makeParams(doc, 0, 9);
-    const result = onHover(params, doc, emptyIndex);
+    const result = onHover(params, makeContext(doc, emptyIndex));
     assert.ok(result, "hovering at end of hook name should work");
   });
 
@@ -511,7 +520,7 @@ suite("onHover — cursor position edge cases", () => {
     const doc = makeDoc("foo + bar");
     // character 4 — the '+' space
     const params = makeParams(doc, 0, 4);
-    const result = onHover(params, doc, emptyIndex);
+    const result = onHover(params, makeContext(doc, emptyIndex));
     assert.strictEqual(result, null);
   });
 
@@ -519,8 +528,8 @@ suite("onHover — cursor position edge cases", () => {
     // 'useState' at col 0, 'onMounted' at col 10
     const doc = makeDoc("useState; onMounted;");
 
-    const hoverState = onHover(makeParams(doc, 0, 3), doc, emptyIndex);
-    const hoverMounted = onHover(makeParams(doc, 0, 13), doc, emptyIndex);
+    const hoverState = onHover(makeParams(doc, 0, 3), makeContext(doc, emptyIndex));
+    const hoverMounted = onHover(makeParams(doc, 0, 13), makeContext(doc, emptyIndex));
 
     assert.ok(hoverState, "useState hover should not be null");
     assert.ok(hoverMounted, "onMounted hover should not be null");
@@ -534,7 +543,7 @@ suite("onHover — cursor position edge cases", () => {
     const index = makeIndex([], [fn]);
     const doc = makeDoc("Component");
     const params = makeParams(doc, 0, 3);
-    const result = onHover(params, doc, index);
+    const result = onHover(params, makeContext(doc, index));
 
     assert.ok(result);
     // OWL class hover includes "OWL class"; function hover includes "Defined in:"
@@ -548,7 +557,7 @@ suite("onHover — cursor position edge cases", () => {
     const doc = makeDoc("const x = 1;\nonMounted;\nconst y = 2;");
     // 'onMounted' is on line 1
     const params = makeParams(doc, 1, 3);
-    const result = onHover(params, doc, emptyIndex);
+    const result = onHover(params, makeContext(doc, emptyIndex));
     assert.ok(result, "should hover on line 1");
     assert.ok(hoverContents(result!).value.includes("onMounted"));
   });

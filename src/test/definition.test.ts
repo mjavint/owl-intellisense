@@ -17,13 +17,14 @@ import { suite, test } from "mocha";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { TextDocumentPositionParams } from "vscode-languageserver/node";
 
-import { onDefinition, invalidateAstCache } from "../server/features/definition";
+import { onDefinition, invalidateAstCache, typeResolver } from "../server/features/definition";
 import {
   OwlComponent,
   ExportedFunction,
   IComponentReader,
   IFunctionReader,
 } from "../shared/types";
+import { createRequestContext } from "../server/shared/requestContext";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -103,6 +104,14 @@ function makeDoc(
   return TextDocument.create(uri, "typescript", version, content);
 }
 
+function makeContext(
+  doc: TextDocument,
+  index: IComponentReader & IFunctionReader,
+  aliasMap?: Map<string, string>
+) {
+  return createRequestContext(doc, index as any, aliasMap, false, typeResolver);
+}
+
 // ─── invalidateAstCache ───────────────────────────────────────────────────────
 
 suite("invalidateAstCache", () => {
@@ -138,8 +147,8 @@ suite("onDefinition — AST cache", () => {
     const params = makeParams(doc, 1, 10);
 
     assert.doesNotThrow(() => {
-      onDefinition(params, doc, index, aliasMap);
-      onDefinition(params, doc, index, aliasMap);
+      onDefinition(params, makeContext(doc, index, aliasMap));
+      onDefinition(params, makeContext(doc, index, aliasMap));
     });
   });
 
@@ -153,12 +162,12 @@ suite("onDefinition — AST cache", () => {
     const params = makeParams(doc1, 0, 10);
 
     // Prime the cache
-    onDefinition(params, doc1, index, aliasMap);
+    onDefinition(params, makeContext(doc1, index, aliasMap));
 
     // Invalidate and call with a new version document
     invalidateAstCache(uri);
     assert.doesNotThrow(() => {
-      onDefinition(makeParams(doc2, 0, 10), doc2, index, aliasMap);
+      onDefinition(makeParams(doc2, 0, 10), makeContext(doc2, index, aliasMap));
     });
   });
 
@@ -174,8 +183,8 @@ suite("onDefinition — AST cache", () => {
 
     // Both calls should succeed without throwing
     assert.doesNotThrow(() => {
-      onDefinition(makeParams(doc1, 0, 10), doc1, index, aliasMap);
-      onDefinition(makeParams(doc2, 0, 10), doc2, index, aliasMap);
+      onDefinition(makeParams(doc1, 0, 10), makeContext(doc1, index, aliasMap));
+      onDefinition(makeParams(doc2, 0, 10), makeContext(doc2, index, aliasMap));
     });
   });
 });
@@ -193,7 +202,7 @@ suite("onDefinition — fallback word lookup via component index", () => {
     const params = makeParams(doc, 0, 12);
     const aliasMap = new Map<string, string>();
 
-    const result = onDefinition(params, doc, index, aliasMap);
+    const result = onDefinition(params, makeContext(doc, index, aliasMap));
 
     assert.ok(result, "should return a Location for the component");
     assert.ok(
@@ -211,7 +220,7 @@ suite("onDefinition — fallback word lookup via component index", () => {
     const params = makeParams(doc, 0, 12);
     const aliasMap = new Map<string, string>();
 
-    const result = onDefinition(params, doc, index, aliasMap);
+    const result = onDefinition(params, makeContext(doc, index, aliasMap));
 
     assert.ok(result, "should return a Location for the function");
     assert.ok(
@@ -226,7 +235,7 @@ suite("onDefinition — fallback word lookup via component index", () => {
     const params = makeParams(doc, 0, 12);
     const aliasMap = new Map<string, string>();
 
-    const result = onDefinition(params, doc, index, aliasMap);
+    const result = onDefinition(params, makeContext(doc, index, aliasMap));
     assert.strictEqual(result, null);
   });
 
@@ -237,7 +246,7 @@ suite("onDefinition — fallback word lookup via component index", () => {
     const params = makeParams(doc, 0, 9);
     const aliasMap = new Map<string, string>();
 
-    const result = onDefinition(params, doc, index, aliasMap);
+    const result = onDefinition(params, makeContext(doc, index, aliasMap));
     assert.strictEqual(result, null);
   });
 });
@@ -263,7 +272,7 @@ suite("onDefinition — import specifier context", () => {
     const params = makeParams(doc, 0, 9);
 
     assert.doesNotThrow(() => {
-      onDefinition(params, doc, index, aliasMap);
+      onDefinition(params, makeContext(doc, index, aliasMap));
     });
   });
 
@@ -277,7 +286,7 @@ suite("onDefinition — import specifier context", () => {
     const params = makeParams(doc, 0, 26);
 
     assert.doesNotThrow(() => {
-      onDefinition(params, doc, index, aliasMap);
+      onDefinition(params, makeContext(doc, index, aliasMap));
     });
   });
 
@@ -303,7 +312,7 @@ suite("onDefinition — import specifier context", () => {
     // Should not throw — may return null if file doesn't exist on disk,
     // or a Location if resolved via index
     assert.doesNotThrow(() => {
-      onDefinition(params, doc, index, aliasMap);
+      onDefinition(params, makeContext(doc, index, aliasMap));
     });
   });
 
@@ -315,7 +324,7 @@ suite("onDefinition — import specifier context", () => {
 
     // Cursor inside the import specifier 'SomeComp' at character 9
     const params = makeParams(doc, 0, 9);
-    const result = onDefinition(params, doc, index, aliasMap);
+    const result = onDefinition(params, makeContext(doc, index, aliasMap));
 
     // File does not exist on disk and nothing is in the index → null
     assert.strictEqual(result, null);
@@ -329,7 +338,7 @@ suite("onDefinition — import specifier context", () => {
 
     // Cursor on the path string at character 20
     const params = makeParams(doc, 0, 20);
-    const result = onDefinition(params, doc, index, aliasMap);
+    const result = onDefinition(params, makeContext(doc, index, aliasMap));
 
     assert.strictEqual(result, null);
   });
@@ -347,7 +356,7 @@ suite("onDefinition — parse error fallback", () => {
     const params = makeParams(doc, 0, 5);
 
     assert.doesNotThrow(() => {
-      onDefinition(params, doc, index, aliasMap);
+      onDefinition(params, makeContext(doc, index, aliasMap));
     });
   });
 
@@ -362,11 +371,11 @@ suite("onDefinition — parse error fallback", () => {
     const aliasMap = new Map<string, string>();
     const params = makeParams(doc, 0, 5);
 
-    const result = onDefinition(params, doc, index, aliasMap);
+    const result = onDefinition(params, makeContext(doc, index, aliasMap));
     // Either a location from the index or null — should not throw
     // (actual result depends on whether the parser tolerates the input)
     assert.doesNotThrow(() => {
-      onDefinition(params, doc, index, aliasMap);
+      onDefinition(params, makeContext(doc, index, aliasMap));
     });
     if (result !== null) {
       assert.strictEqual(
@@ -394,7 +403,7 @@ suite("onDefinition — aliasMap", () => {
     const params = makeParams(doc, 0, 10);
 
     assert.doesNotThrow(() => {
-      onDefinition(params, doc, index, aliasMap);
+      onDefinition(params, makeContext(doc, index, aliasMap));
     });
   });
 
@@ -405,7 +414,7 @@ suite("onDefinition — aliasMap", () => {
     const index = makeIndex();
     const params = makeParams(doc, 0, 10);
 
-    const result = onDefinition(params, doc, index, aliasMap);
+    const result = onDefinition(params, makeContext(doc, index, aliasMap));
     assert.strictEqual(result, null);
   });
 });

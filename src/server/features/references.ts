@@ -1,5 +1,4 @@
 import { Location, ReferenceParams } from 'vscode-languageserver/node';
-import { TextDocument } from 'vscode-languageserver-textdocument';
 import {
   IComponentReader,
   IFunctionReader,
@@ -7,35 +6,14 @@ import {
   IServiceReader,
 } from '../../shared/types';
 import { OWL_HOOK_NAMES } from '../owl/catalog';
-
-// PERF-10: Bounded line read
-const MAX_LINE_CHARS = 9999;
-
-// PERF-03: Module-level compiled identifier regex
-const RE_IDENTIFIER = /[a-zA-Z_$][a-zA-Z0-9_$]*/g;
-
-function getWordAtPosition(
-  doc: TextDocument,
-  position: { line: number; character: number },
-): string | null {
-  const line = doc.getText({
-    start: { line: position.line, character: 0 },
-    end: { line: position.line, character: MAX_LINE_CHARS },
-  });
-  const char = position.character;
-  RE_IDENTIFIER.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = RE_IDENTIFIER.exec(line)) !== null) {
-    if (m.index <= char && char <= m.index + m[0].length) { return m[0]; }
-  }
-  return null;
-}
+import { getWordAtPosition, type RequestContext } from '../shared';
 
 export function onReferences(
   params: ReferenceParams,
-  doc: TextDocument,
-  index: IComponentReader & IFunctionReader & IImportReader & IServiceReader,
+  ctx: RequestContext,
 ): Location[] {
+  const doc = ctx.doc;
+  if (!doc) { return []; }
   const word = getWordAtPosition(doc, params.position);
   if (!word) { return []; }
 
@@ -52,18 +30,18 @@ export function onReferences(
   }
 
   // ── Component references ────────────────────────────────────────────────────
-  const comp = index.getComponent(word);
+  const comp = ctx.index.getComponent(word);
   if (comp) {
     // Declaration
     if (params.context.includeDeclaration) {
       addLoc(Location.create(comp.uri, comp.range));
     }
     // All import usages across workspace
-    for (const imp of index.getImportsForSpecifier(word)) {
+    for (const imp of ctx.index.getImportsForSpecifier(word)) {
       addLoc(Location.create(imp.uri, imp.range));
     }
     // Also find usages in files that define the component (e.g. JSX usage)
-    for (const imp of index.getImportsInFile(comp.uri)) {
+    for (const imp of ctx.index.getImportsInFile(comp.uri)) {
       if (imp.specifier === word) {
         addLoc(Location.create(imp.uri, imp.range));
       }
@@ -72,24 +50,24 @@ export function onReferences(
 
   // ── OWL hook references ─────────────────────────────────────────────────────
   if (OWL_HOOK_NAMES.has(word)) {
-    for (const imp of index.getImportsForSpecifier(word)) {
+    for (const imp of ctx.index.getImportsForSpecifier(word)) {
       addLoc(Location.create(imp.uri, imp.range));
     }
   }
 
   // ── Exported function references ────────────────────────────────────────────
-  const fn = index.getFunction(word);
+  const fn = ctx.index.getFunction(word);
   if (fn) {
     if (params.context.includeDeclaration) {
       addLoc(Location.create(fn.uri, fn.range));
     }
-    for (const imp of index.getImportsForSpecifier(word)) {
+    for (const imp of ctx.index.getImportsForSpecifier(word)) {
       addLoc(Location.create(imp.uri, imp.range));
     }
   }
 
   // ── Odoo service references ─────────────────────────────────────────────────
-  const svc = index.getService(word);
+  const svc = ctx.index.getService(word);
   if (svc) {
     if (params.context.includeDeclaration) {
       addLoc(Location.create(svc.uri, svc.range));
@@ -97,7 +75,7 @@ export function onReferences(
     // Services are referenced by string name in useService() calls; the import
     // record for the service definition file is the best proxy we have in the
     // current index.
-    for (const imp of index.getImportsForSpecifier(word)) {
+    for (const imp of ctx.index.getImportsForSpecifier(word)) {
       addLoc(Location.create(imp.uri, imp.range));
     }
   }
@@ -105,7 +83,7 @@ export function onReferences(
   // ── Generic import-specifier references (catch-all) ─────────────────────────
   // For symbols not captured above (e.g. re-exported utilities, aliases)
   if (locations.length === 0) {
-    for (const imp of index.getImportsForSpecifier(word)) {
+    for (const imp of ctx.index.getImportsForSpecifier(word)) {
       addLoc(Location.create(imp.uri, imp.range));
     }
   }

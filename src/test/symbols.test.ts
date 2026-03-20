@@ -23,15 +23,16 @@
 import * as assert from "assert";
 import { suite, test } from "mocha";
 import { SymbolKind } from "vscode-languageserver/node";
+import { TextDocument } from "vscode-languageserver-textdocument";
 
 import { onDocumentSymbol, onWorkspaceSymbol } from "../server/features/symbols";
 import {
   OwlComponent,
-  IComponentReader,
-  IFunctionReader,
-  IServiceReader,
-  IRegistryReader,
+  ISymbolStore,
 } from "../shared/types";
+import { createRequestContext } from "../server/shared/requestContext";
+import { typeResolver } from "../server/features/definition";
+import type { RequestContext } from "../server/shared";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -68,32 +69,52 @@ function makeComponent(
  * Minimal IComponentReader backed by a flat array of components.
  * getComponentsInFile filters by uri; getAllComponents returns all.
  */
-function makeIndex(
-  components: OwlComponent[]
-): IComponentReader & IFunctionReader & IServiceReader & IRegistryReader {
+function makeIndex(components: OwlComponent[]): ISymbolStore {
   return {
     // IComponentReader
-    getComponent: (name) => components.find((c) => c.name === name),
+    getComponent: (name: string) => components.find((c) => c.name === name),
     getAllComponents: function* () {
       for (const c of components) {
         yield c;
       }
     },
-    getComponentsInFile: (uri) => components.filter((c) => c.uri === uri),
+    getComponentsInFile: (uri: string) => components.filter((c) => c.uri === uri),
     // IFunctionReader
-    getFunction: (_name) => undefined,
+    getFunction: (_name: string) => undefined,
     getAllFunctions: function* () {},
     registerSourceAlias: () => {},
-    getSourceAliasUris: (_source) => [],
-    getFunctionBySource: (_source, _name) => undefined,
+    getSourceAliasUris: (_source: string) => [],
+    getFunctionBySource: (_source: string, _name: string) => undefined,
     // IServiceReader
-    getService: (_name) => undefined,
+    getService: (_name: string) => undefined,
     getAllServices: function* () {},
     // IRegistryReader
-    getRegistry: (_category, _key) => undefined,
-    getRegistriesByCategory: (_category) => [],
+    getRegistry: (_category: string, _key: string) => undefined,
+    getRegistriesByCategory: (_category: string) => [],
     getAllRegistryCategories: () => [],
+    // IImportReader
+    getImportsInFile: (_uri: string) => [],
+    getImportsForSpecifier: (_spec: string) => [],
+    // ISetupPropReader
+    getSetupProps: (_componentName: string, _uri: string) => undefined,
+    // Write operations
+    upsertFileSymbols: () => {},
+    upsertSetupProps: () => {},
+    removeFile: () => {},
+    clear: () => {},
   };
+}
+
+function makeCtx(index: ISymbolStore, uri = "file:///test.ts"): RequestContext {
+  const doc = TextDocument.create(uri, "typescript", 1, "");
+  return createRequestContext(doc, index, undefined, false, typeResolver);
+}
+
+function makeWorkspaceCtx(index: ISymbolStore): RequestContext {
+  return {
+    index,
+    services: { typeResolver },
+  } as unknown as RequestContext;
 }
 
 // ─── onDocumentSymbol ─────────────────────────────────────────────────────────
@@ -101,9 +122,11 @@ function makeIndex(
 suite("onDocumentSymbol — empty index", () => {
   test("no components registered for URI → empty array", () => {
     const index = makeIndex([]);
+    const doc = TextDocument.create("file:///empty.ts", "typescript", 1, "");
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
     const result = onDocumentSymbol(
       { textDocument: { uri: "file:///empty.ts" } },
-      index
+      ctx
     );
     assert.deepStrictEqual(result, []);
   });
@@ -111,10 +134,12 @@ suite("onDocumentSymbol — empty index", () => {
   test("components registered for a different URI → empty array for queried URI", () => {
     const comp = makeComponent("OtherComp", "file:///other.ts");
     const index = makeIndex([comp]);
+    const doc = TextDocument.create("file:///queried.ts", "typescript", 1, "");
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
     const result = onDocumentSymbol(
       { textDocument: { uri: "file:///queried.ts" } },
-      index
+      ctx
     );
     assert.deepStrictEqual(result, []);
   });
@@ -125,8 +150,10 @@ suite("onDocumentSymbol — single component", () => {
     const uri = "file:///widget.ts";
     const comp = makeComponent("MyWidget", uri);
     const index = makeIndex([comp]);
+    const doc = TextDocument.create(uri, "typescript", 1, "");
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onDocumentSymbol({ textDocument: { uri } }, index);
+    const result = onDocumentSymbol({ textDocument: { uri } }, ctx);
 
     assert.strictEqual(result.length, 1);
   });
@@ -135,8 +162,10 @@ suite("onDocumentSymbol — single component", () => {
     const uri = "file:///widget.ts";
     const comp = makeComponent("MyWidget", uri);
     const index = makeIndex([comp]);
+    const doc = TextDocument.create(uri, "typescript", 1, "");
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const [sym] = onDocumentSymbol({ textDocument: { uri } }, index);
+    const [sym] = onDocumentSymbol({ textDocument: { uri } }, ctx);
 
     assert.strictEqual(sym.kind, SymbolKind.Class);
   });
@@ -145,8 +174,10 @@ suite("onDocumentSymbol — single component", () => {
     const uri = "file:///widget.ts";
     const comp = makeComponent("NavBar", uri);
     const index = makeIndex([comp]);
+    const doc = TextDocument.create(uri, "typescript", 1, "");
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const [sym] = onDocumentSymbol({ textDocument: { uri } }, index);
+    const [sym] = onDocumentSymbol({ textDocument: { uri } }, ctx);
 
     assert.strictEqual(sym.name, "NavBar");
   });
@@ -155,8 +186,10 @@ suite("onDocumentSymbol — single component", () => {
     const uri = "file:///widget.ts";
     const comp = makeComponent("Footer", uri);
     const index = makeIndex([comp]);
+    const doc = TextDocument.create(uri, "typescript", 1, "");
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const [sym] = onDocumentSymbol({ textDocument: { uri } }, index);
+    const [sym] = onDocumentSymbol({ textDocument: { uri } }, ctx);
 
     assert.strictEqual(sym.location.uri, uri);
   });
@@ -165,8 +198,10 @@ suite("onDocumentSymbol — single component", () => {
     const uri = "file:///widget.ts";
     const comp = makeComponent("Header", uri, undefined, 5);
     const index = makeIndex([comp]);
+    const doc = TextDocument.create(uri, "typescript", 1, "");
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const [sym] = onDocumentSymbol({ textDocument: { uri } }, index);
+    const [sym] = onDocumentSymbol({ textDocument: { uri } }, ctx);
 
     assert.deepStrictEqual(sym.location.range.start, { line: 5, character: 0 });
   });
@@ -177,8 +212,10 @@ suite("onDocumentSymbol — templateRef / containerName", () => {
     const uri = "file:///tmpl.ts";
     const comp = makeComponent("MyComp", uri, "my_module.MyComp");
     const index = makeIndex([comp]);
+    const doc = TextDocument.create(uri, "typescript", 1, "");
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const [sym] = onDocumentSymbol({ textDocument: { uri } }, index);
+    const [sym] = onDocumentSymbol({ textDocument: { uri } }, ctx);
 
     assert.strictEqual(sym.containerName, "my_module.MyComp");
   });
@@ -187,8 +224,10 @@ suite("onDocumentSymbol — templateRef / containerName", () => {
     const uri = "file:///notmpl.ts";
     const comp = makeComponent("PlainComp", uri, undefined);
     const index = makeIndex([comp]);
+    const doc = TextDocument.create(uri, "typescript", 1, "");
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const [sym] = onDocumentSymbol({ textDocument: { uri } }, index);
+    const [sym] = onDocumentSymbol({ textDocument: { uri } }, ctx);
 
     assert.strictEqual(sym.containerName, undefined);
   });
@@ -202,8 +241,10 @@ suite("onDocumentSymbol — multiple components in same file", () => {
       makeComponent("CompB", uri, undefined, 10),
     ];
     const index = makeIndex(comps);
+    const doc = TextDocument.create(uri, "typescript", 1, "");
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onDocumentSymbol({ textDocument: { uri } }, index);
+    const result = onDocumentSymbol({ textDocument: { uri } }, ctx);
 
     assert.strictEqual(result.length, 2);
   });
@@ -216,8 +257,10 @@ suite("onDocumentSymbol — multiple components in same file", () => {
       makeComponent("Gamma", uri),
     ];
     const index = makeIndex(comps);
+    const doc = TextDocument.create(uri, "typescript", 1, "");
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onDocumentSymbol({ textDocument: { uri } }, index);
+    const result = onDocumentSymbol({ textDocument: { uri } }, ctx);
 
     const names = result.map((s) => s.name);
     assert.ok(names.includes("Alpha"));
@@ -233,8 +276,10 @@ suite("onDocumentSymbol — multiple components in same file", () => {
       makeComponent("InOther", otherUri),
     ];
     const index = makeIndex(comps);
+    const doc = TextDocument.create(targetUri, "typescript", 1, "");
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onDocumentSymbol({ textDocument: { uri: targetUri } }, index);
+    const result = onDocumentSymbol({ textDocument: { uri: targetUri } }, ctx);
 
     assert.strictEqual(result.length, 1);
     assert.strictEqual(result[0].name, "InTarget");
@@ -247,8 +292,10 @@ suite("onDocumentSymbol — multiple components in same file", () => {
       makeComponent("B", uri),
     ];
     const index = makeIndex(comps);
+    const doc = TextDocument.create(uri, "typescript", 1, "");
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onDocumentSymbol({ textDocument: { uri } }, index);
+    const result = onDocumentSymbol({ textDocument: { uri } }, ctx);
 
     for (const sym of result) {
       assert.strictEqual(sym.kind, SymbolKind.Class);
@@ -261,13 +308,15 @@ suite("onDocumentSymbol — multiple components in same file", () => {
 suite("onWorkspaceSymbol — empty workspace", () => {
   test("no components in index → empty array for any query", () => {
     const index = makeIndex([]);
-    const result = onWorkspaceSymbol({ query: "anything" }, index);
+    const ctx = makeWorkspaceCtx(index);
+    const result = onWorkspaceSymbol({ query: "anything" }, ctx);
     assert.deepStrictEqual(result, []);
   });
 
   test("no components in index → empty array for empty query", () => {
     const index = makeIndex([]);
-    const result = onWorkspaceSymbol({ query: "" }, index);
+    const ctx = makeWorkspaceCtx(index);
+    const result = onWorkspaceSymbol({ query: "" }, ctx);
     assert.deepStrictEqual(result, []);
   });
 });
@@ -280,8 +329,9 @@ suite("onWorkspaceSymbol — empty query returns all", () => {
       makeComponent("Gamma", "file:///c.ts"),
     ];
     const index = makeIndex(comps);
+    const ctx = makeWorkspaceCtx(index);
 
-    const result = onWorkspaceSymbol({ query: "" }, index);
+    const result = onWorkspaceSymbol({ query: "" }, ctx);
 
     assert.strictEqual(result.length, 3, "empty query should return all 3 components");
   });
@@ -292,8 +342,9 @@ suite("onWorkspaceSymbol — empty query returns all", () => {
       makeComponent("Y", "file:///y.ts"),
     ];
     const index = makeIndex(comps);
+    const ctx = makeWorkspaceCtx(index);
 
-    const result = onWorkspaceSymbol({ query: "" }, index);
+    const result = onWorkspaceSymbol({ query: "" }, ctx);
 
     for (const sym of result) {
       assert.strictEqual(sym.kind, SymbolKind.Class);
@@ -311,7 +362,8 @@ suite("onWorkspaceSymbol — name filtering", () => {
 
   test("exact lowercase query matches correct component", () => {
     const index = makeIndex(comps);
-    const result = onWorkspaceSymbol({ query: "navbar" }, index);
+    const ctx = makeWorkspaceCtx(index);
+    const result = onWorkspaceSymbol({ query: "navbar" }, ctx);
 
     assert.strictEqual(result.length, 1);
     assert.strictEqual(result[0].name, "NavBar");
@@ -319,7 +371,8 @@ suite("onWorkspaceSymbol — name filtering", () => {
 
   test("partial query 'todo' matches TodoList and TodoItem", () => {
     const index = makeIndex(comps);
-    const result = onWorkspaceSymbol({ query: "todo" }, index);
+    const ctx = makeWorkspaceCtx(index);
+    const result = onWorkspaceSymbol({ query: "todo" }, ctx);
 
     assert.strictEqual(result.length, 2);
     const names = result.map((s) => s.name);
@@ -329,7 +382,8 @@ suite("onWorkspaceSymbol — name filtering", () => {
 
   test("query is case-insensitive (uppercase input)", () => {
     const index = makeIndex(comps);
-    const result = onWorkspaceSymbol({ query: "SIDEBAR" }, index);
+    const ctx = makeWorkspaceCtx(index);
+    const result = onWorkspaceSymbol({ query: "SIDEBAR" }, ctx);
 
     assert.strictEqual(result.length, 1);
     assert.strictEqual(result[0].name, "Sidebar");
@@ -337,23 +391,26 @@ suite("onWorkspaceSymbol — name filtering", () => {
 
   test("mixed-case query matches case-insensitively", () => {
     const index = makeIndex(comps);
-    const result = onWorkspaceSymbol({ query: "ToDo" }, index);
+    const ctx = makeWorkspaceCtx(index);
+    const result = onWorkspaceSymbol({ query: "ToDo" }, ctx);
 
     assert.strictEqual(result.length, 2);
   });
 
   test("non-matching query → empty array", () => {
     const index = makeIndex(comps);
-    const result = onWorkspaceSymbol({ query: "xyznotexist" }, index);
+    const ctx = makeWorkspaceCtx(index);
+    const result = onWorkspaceSymbol({ query: "xyznotexist" }, ctx);
 
     assert.deepStrictEqual(result, []);
   });
 
   test("single-character query returns all components whose name contains that char", () => {
     const index = makeIndex(comps);
+    const ctx = makeWorkspaceCtx(index);
     // 'a' is in NavBar, TodoList, TodoItem, Sidebar — all contain 'a'? Let's check:
     // NavBar → yes; TodoList → yes (a); TodoItem → yes; Sidebar → yes
-    const result = onWorkspaceSymbol({ query: "a" }, index);
+    const result = onWorkspaceSymbol({ query: "a" }, ctx);
     // All 4 contain 'a' (case-insensitive)
     assert.ok(result.length >= 1, "at least one component should match single char");
   });
@@ -363,8 +420,9 @@ suite("onWorkspaceSymbol — result shape", () => {
   test("each result has SymbolKind.Class", () => {
     const comps = [makeComponent("ShapeComp", "file:///shape.ts")];
     const index = makeIndex(comps);
+    const ctx = makeWorkspaceCtx(index);
 
-    const [sym] = onWorkspaceSymbol({ query: "shape" }, index);
+    const [sym] = onWorkspaceSymbol({ query: "shape" }, ctx);
 
     assert.strictEqual(sym.kind, SymbolKind.Class);
   });
@@ -373,8 +431,9 @@ suite("onWorkspaceSymbol — result shape", () => {
     const uri = "file:///loc-test.ts";
     const comps = [makeComponent("LocTest", uri)];
     const index = makeIndex(comps);
+    const ctx = makeWorkspaceCtx(index);
 
-    const [sym] = onWorkspaceSymbol({ query: "loctest" }, index);
+    const [sym] = onWorkspaceSymbol({ query: "loctest" }, ctx);
 
     assert.strictEqual(sym.location.uri, uri);
   });
@@ -383,8 +442,9 @@ suite("onWorkspaceSymbol — result shape", () => {
     const uri = "file:///range-test.ts";
     const comp = makeComponent("RangeTest", uri, undefined, 7);
     const index = makeIndex([comp]);
+    const ctx = makeWorkspaceCtx(index);
 
-    const [sym] = onWorkspaceSymbol({ query: "range" }, index);
+    const [sym] = onWorkspaceSymbol({ query: "range" }, ctx);
 
     assert.deepStrictEqual(sym.location.range.start, { line: 7, character: 0 });
   });
@@ -393,8 +453,9 @@ suite("onWorkspaceSymbol — result shape", () => {
     const uri = "file:///container.ts";
     const comp = makeComponent("ContainerComp", uri, "some_template");
     const index = makeIndex([comp]);
+    const ctx = makeWorkspaceCtx(index);
 
-    const [sym] = onWorkspaceSymbol({ query: "container" }, index);
+    const [sym] = onWorkspaceSymbol({ query: "container" }, ctx);
 
     // onWorkspaceSymbol uses comp.filePath, NOT comp.templateRef
     assert.strictEqual(sym.containerName, comp.filePath);
@@ -403,8 +464,9 @@ suite("onWorkspaceSymbol — result shape", () => {
   test("name in result matches component name", () => {
     const comps = [makeComponent("NameCheck", "file:///nc.ts")];
     const index = makeIndex(comps);
+    const ctx = makeWorkspaceCtx(index);
 
-    const [sym] = onWorkspaceSymbol({ query: "namecheck" }, index);
+    const [sym] = onWorkspaceSymbol({ query: "namecheck" }, ctx);
 
     assert.strictEqual(sym.name, "NameCheck");
   });
@@ -420,9 +482,10 @@ suite("onWorkspaceSymbol — large workspace", () => {
       comps.push(makeComponent(`Panel${i}`, `file:///panel${i}.ts`));
     }
     const index = makeIndex(comps);
+    const ctx = makeWorkspaceCtx(index);
 
-    const widgetResults = onWorkspaceSymbol({ query: "widget" }, index);
-    const panelResults = onWorkspaceSymbol({ query: "panel" }, index);
+    const widgetResults = onWorkspaceSymbol({ query: "widget" }, ctx);
+    const panelResults = onWorkspaceSymbol({ query: "panel" }, ctx);
 
     assert.strictEqual(widgetResults.length, 40, "should return all 40 Widget components");
     assert.strictEqual(panelResults.length, 10, "should return all 10 Panel components");

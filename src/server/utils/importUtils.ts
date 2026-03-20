@@ -5,36 +5,9 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { filePathToAlias, inferAliasFromPath } from '../resolver/addonDetector';
 
-export interface ImportGroup {
-  source: string;
-  specifiers: string[]; // sorted
-}
 
-/**
- * Parse all existing import declarations from source text.
- */
-export function parseImportGroups(source: string): ImportGroup[] {
-  let ast: TSESTree.Program;
-  try {
-    ast = parse(source, { tolerant: true, loc: true }) as TSESTree.Program;
-  } catch {
-    return [];
-  }
-  const groups: ImportGroup[] = [];
-  for (const node of ast.body) {
-    if (node.type !== 'ImportDeclaration') { continue; }
-    const specifiers: string[] = [];
-    for (const s of node.specifiers) {
-      if (s.type === 'ImportSpecifier') {
-        specifiers.push(s.imported.type === 'Identifier' ? s.imported.name : (s.imported as TSESTree.StringLiteral).value as string);
-      } else if (s.type === 'ImportDefaultSpecifier') {
-        specifiers.push('default:' + s.local.name);
-      }
-    }
-    groups.push({ source: node.source.value as string, specifiers });
-  }
-  return groups;
-}
+
+
 
 /**
  * Parse document text into an AST for use with buildAddImportEditsFromAst / isSpecifierImportedFromAst.

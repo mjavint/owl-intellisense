@@ -23,11 +23,12 @@ import {
   OwlComponent,
   ExportedFunction,
   ImportRecord,
-  IComponentReader,
-  IFunctionReader,
-  IImportReader,
-  IServiceReader,
+  ISymbolStore,
+  SetupPropertyAssignment,
+  ParseResult,
 } from "../shared/types";
+import { createRequestContext } from "../server/shared/requestContext";
+import { typeResolver } from "../server/features/definition";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -81,31 +82,39 @@ interface MockIndexOptions {
   importsBySpecifier?: Map<string, ImportRecord[]>;
 }
 
-function makeIndex(opts: MockIndexOptions = {}): IComponentReader &
-  IFunctionReader &
-  IImportReader &
-  IServiceReader {
+function makeIndex(opts: MockIndexOptions = {}): ISymbolStore {
   const compMap = new Map((opts.components ?? []).map((c) => [c.name, c]));
   const fnMap = new Map((opts.functions ?? []).map((f) => [f.name, f]));
   const importsBySpec = opts.importsBySpecifier ?? new Map<string, ImportRecord[]>();
 
   return {
     // IComponentReader
-    getComponent: (name) => compMap.get(name),
+    getComponent: (name: string) => compMap.get(name),
     getAllComponents: () => compMap.values(),
-    getComponentsInFile: (_uri) => [],
+    getComponentsInFile: (_uri: string) => [],
     // IFunctionReader
-    getFunction: (name) => fnMap.get(name),
+    getFunction: (name: string) => fnMap.get(name),
     getAllFunctions: () => fnMap.values(),
     registerSourceAlias: () => {},
-    getSourceAliasUris: (_source) => [],
-    getFunctionBySource: (_source, _name) => undefined,
+    getSourceAliasUris: (_source: string) => [],
+    getFunctionBySource: (_source: string, _name: string) => undefined,
     // IImportReader
-    getImportsInFile: (_uri) => [],
-    getImportsForSpecifier: (spec) => importsBySpec.get(spec) ?? [],
+    getImportsInFile: (_uri: string) => [],
+    getImportsForSpecifier: (spec: string) => importsBySpec.get(spec) ?? [],
     // IServiceReader
-    getService: (_name) => undefined,
+    getService: (_name: string) => undefined,
     getAllServices: function* () {},
+    // IRegistryReader
+    getRegistry: (_category: string, _key: string) => undefined,
+    getRegistriesByCategory: (_category: string) => [],
+    getAllRegistryCategories: () => [],
+    // ISetupPropReader
+    getSetupProps: (_componentName: string, _uri: string) => undefined,
+    // Write operations (not used in tests)
+    upsertFileSymbols: () => {},
+    upsertSetupProps: () => {},
+    removeFile: () => {},
+    clear: () => {},
   };
 }
 
@@ -132,8 +141,9 @@ suite("onReferences — unknown word", () => {
     const index = makeIndex();
     const doc = makeDoc("unknownSymbol");
     const params = makeParams(doc, 0, 5);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onReferences(params, doc, index);
+    const result = onReferences(params, ctx);
     assert.deepStrictEqual(result, []);
   });
 
@@ -142,8 +152,9 @@ suite("onReferences — unknown word", () => {
     const doc = makeDoc("const x = 1;");
     // space between 'const' and 'x'
     const params = makeParams(doc, 0, 6);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onReferences(params, doc, index);
+    const result = onReferences(params, ctx);
     assert.deepStrictEqual(result, []);
   });
 
@@ -151,8 +162,9 @@ suite("onReferences — unknown word", () => {
     const index = makeIndex();
     const doc = makeDoc("");
     const params = makeParams(doc, 0, 0);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onReferences(params, doc, index);
+    const result = onReferences(params, ctx);
     assert.deepStrictEqual(result, []);
   });
 });
@@ -167,8 +179,9 @@ suite("onReferences — component", () => {
 
     const doc = makeDoc("MyWidget");
     const params = makeParams(doc, 0, 3);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onReferences(params, doc, index);
+    const result = onReferences(params, ctx);
 
     assert.strictEqual(result.length, 1, "should have exactly one location (declaration)");
     assert.strictEqual(result[0].uri, compUri);
@@ -185,8 +198,9 @@ suite("onReferences — component", () => {
 
     const doc = makeDoc("MyWidget");
     const params = makeParams(doc, 0, 3);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onReferences(params, doc, index);
+    const result = onReferences(params, ctx);
 
     assert.strictEqual(result.length, 2, "should have declaration + import");
     const uris = result.map((l) => l.uri);
@@ -207,8 +221,9 @@ suite("onReferences — component", () => {
 
     const doc = makeDoc("NavBar");
     const params = makeParams(doc, 0, 3);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onReferences(params, doc, index);
+    const result = onReferences(params, ctx);
 
     // 1 declaration + 3 imports
     assert.strictEqual(result.length, 4);
@@ -222,8 +237,9 @@ suite("onReferences — component", () => {
 
     const doc = makeDoc("FooComp");
     const params = makeParams(doc, 0, 3);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onReferences(params, doc, index);
+    const result = onReferences(params, ctx);
 
     assert.strictEqual(result.length, 1);
     assert.strictEqual(result[0].uri, compUri);
@@ -238,8 +254,9 @@ suite("onReferences — OWL hook", () => {
     const index = makeIndex();
     const doc = makeDoc("useState");
     const params = makeParams(doc, 0, 3);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onReferences(params, doc, index);
+    const result = onReferences(params, ctx);
     assert.deepStrictEqual(result, []);
   });
 
@@ -251,8 +268,9 @@ suite("onReferences — OWL hook", () => {
 
     const doc = makeDoc("useState");
     const params = makeParams(doc, 0, 3);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onReferences(params, doc, index);
+    const result = onReferences(params, ctx);
 
     assert.strictEqual(result.length, 1);
     assert.strictEqual(result[0].uri, importUri);
@@ -268,8 +286,9 @@ suite("onReferences — OWL hook", () => {
 
     const doc = makeDoc("onMounted");
     const params = makeParams(doc, 0, 4);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onReferences(params, doc, index);
+    const result = onReferences(params, ctx);
     assert.strictEqual(result.length, 2);
   });
 
@@ -281,8 +300,9 @@ suite("onReferences — OWL hook", () => {
 
     const doc = makeDoc("useRef");
     const params = makeParams(doc, 0, 3);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onReferences(params, doc, index);
+    const result = onReferences(params, ctx);
 
     // Only the import record — hooks are not components, no declaration is added
     assert.strictEqual(result.length, 1);
@@ -298,8 +318,9 @@ suite("onReferences — OWL hook", () => {
     for (const hookName of hooks) {
       const doc = makeDoc(hookName);
       const params = makeParams(doc, 0, 3);
+      const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
       assert.doesNotThrow(() => {
-        const result = onReferences(params, doc, index);
+        const result = onReferences(params, ctx);
         assert.ok(Array.isArray(result));
       }, `hook ${hookName} should not throw`);
     }
@@ -315,8 +336,9 @@ suite("onReferences — OWL hook", () => {
     for (const hookName of hooks) {
       const doc = makeDoc(hookName);
       const params = makeParams(doc, 0, 3);
+      const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
       assert.doesNotThrow(() => {
-        const result = onReferences(params, doc, index);
+        const result = onReferences(params, ctx);
         assert.ok(Array.isArray(result));
       }, `hook ${hookName} should not throw`);
     }
@@ -333,8 +355,9 @@ suite("onReferences — workspace function", () => {
 
     const doc = makeDoc("formatDate");
     const params = makeParams(doc, 0, 5);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onReferences(params, doc, index);
+    const result = onReferences(params, ctx);
     assert.strictEqual(result.length, 1);
     assert.strictEqual(result[0].uri, fnUri);
   });
@@ -349,8 +372,9 @@ suite("onReferences — workspace function", () => {
 
     const doc = makeDoc("formatDate");
     const params = makeParams(doc, 0, 5);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onReferences(params, doc, index);
+    const result = onReferences(params, ctx);
     assert.strictEqual(result.length, 2);
     const uris = result.map((l) => l.uri);
     assert.ok(uris.includes(fnUri));
@@ -370,8 +394,9 @@ suite("onReferences — workspace function", () => {
 
     const doc = makeDoc("parseDate");
     const params = makeParams(doc, 0, 5);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onReferences(params, doc, index);
+    const result = onReferences(params, ctx);
     assert.strictEqual(result.length, 4); // 1 decl + 3 imports
   });
 });
@@ -389,8 +414,9 @@ suite("onReferences — combined component and function with same name", () => {
 
     const doc = makeDoc("Shared");
     const params = makeParams(doc, 0, 3);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onReferences(params, doc, index);
+    const result = onReferences(params, ctx);
 
     // At minimum: comp declaration + fn declaration
     assert.ok(result.length >= 2, "should include both component and function declarations");
@@ -413,8 +439,9 @@ suite("onReferences — result object shape", () => {
 
     const doc = makeDoc("ShapeTest");
     const params = makeParams(doc, 0, 3);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onReferences(params, doc, index);
+    const result = onReferences(params, ctx);
 
     for (const loc of result) {
       assert.ok(typeof loc.uri === "string", "uri should be a string");
@@ -442,8 +469,9 @@ suite("onReferences — result object shape", () => {
 
     const doc = makeDoc("useState");
     const params = makeParams(doc, 0, 3);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
 
-    const result = onReferences(params, doc, index);
+    const result = onReferences(params, ctx);
 
     assert.strictEqual(result.length, 1);
     assert.deepStrictEqual(result[0].range.start, { line: 12, character: 9 });

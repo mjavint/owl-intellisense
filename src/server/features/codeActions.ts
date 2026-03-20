@@ -4,7 +4,6 @@ import {
   CodeActionParams,
   TextEdit,
 } from 'vscode-languageserver/node';
-import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -12,13 +11,16 @@ import { HOOK_NAMES } from '../owl/catalog';
 import { IComponentReader, IFunctionReader } from '../../shared/types';
 import { buildAddImportEdits, isSpecifierImported, resolveImportSource } from '../utils/importUtils';
 import { filePathToAlias, inferAliasFromPath } from '../resolver/addonDetector';
+import { type RequestContext } from '../shared';
 
 export function onCodeAction(
   params: CodeActionParams,
-  doc: TextDocument,
-  index: IComponentReader & IFunctionReader,
-  aliasMap?: Map<string, string>
+  ctx: RequestContext,
 ): CodeAction[] {
+  const doc = ctx.doc;
+  if (!doc) { return []; }
+  const index = ctx.index;
+  const aliasMap = ctx.aliasMap;
   const actions: CodeAction[] = [];
   const text = doc.getText();
   const currentFile = doc.uri;

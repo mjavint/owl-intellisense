@@ -10,14 +10,16 @@ import {
   IServiceReader,
   IRegistryReader,
 } from '../../shared/types';
+import { type RequestContext } from '../shared';
 
 // ─── Document Symbols ─────────────────────────────────────────────────────────
 
 export function onDocumentSymbol(
   params: DocumentSymbolParams,
-  index: IComponentReader & IFunctionReader & IServiceReader & IRegistryReader,
+  ctx: RequestContext,
 ): SymbolInformation[] {
   const uri = params.textDocument.uri;
+  const index = ctx.index;
   const results: SymbolInformation[] = [];
 
   // OWL Components (SymbolKind.Class)
@@ -72,9 +74,10 @@ export function onDocumentSymbol(
 
 export function onWorkspaceSymbol(
   params: WorkspaceSymbolParams,
-  index: IComponentReader & IFunctionReader & IServiceReader & IRegistryReader,
+  ctx: RequestContext,
 ): SymbolInformation[] {
   const query = params.query.toLowerCase();
+  const index = ctx.index;
   const results: SymbolInformation[] = [];
 
   function matchesQuery(name: string): boolean {

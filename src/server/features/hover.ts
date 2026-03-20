@@ -3,23 +3,14 @@ import {
   MarkupKind,
   TextDocumentPositionParams,
 } from 'vscode-languageserver/node';
-import { TextDocument } from 'vscode-languageserver-textdocument';
 import {
   HOOK_NAMES,
   getHookByName,
   OWL_CLASS_NAMES,
   getClassByName,
 } from '../owl/catalog';
-import {
-  IComponentReader,
-  IFunctionReader,
-  IServiceReader,
-  IRegistryReader,
-  ExportedFunction,
-} from '../../shared/types';
-
-// PERF-10: Bounded line read — reads to end-of-line regardless of cursor position
-const MAX_HOVER_LINE_CHARS = 9999;
+import { ExportedFunction } from '../../shared/types';
+import { getWordAtPosition, type RequestContext } from '../shared';
 
 // PERF-03: Module-level compiled regex patterns for JSDoc parsing
 const RE_JSDOC_PARAM = /@param\s+\{([^}]+)\}\s+(\w+)\s*(.*)/g;
@@ -27,31 +18,7 @@ const RE_JSDOC_RETURNS = /@returns?\s+\{([^}]+)\}\s*(.*)/;
 const RE_JSDOC_DESC_TAG = /@description\s+(.+)/;
 
 /**
- * Gets the word at the cursor position in the document.
- */
-function getWordAtPosition(
-  doc: TextDocument,
-  params: TextDocumentPositionParams,
-): string | null {
-  const { line, character } = params.position;
-  const lineText = doc.getText({
-    start: { line, character: 0 },
-    end: { line, character: MAX_HOVER_LINE_CHARS },
-  });
-
-  // Find word boundaries around cursor character position
-  let start = character;
-  let end = character;
-
-  while (start > 0 && /\w/.test(lineText[start - 1])) { start--; }
-  while (end < lineText.length && /\w/.test(lineText[end])) { end++; }
-
-  const word = lineText.substring(start, end);
-  return word || null;
-}
-
-/**
- * Build rich markdown hover content for an indexed ExportedFunction,
+ * Build rich markdown hover content for an ctx.indexed ExportedFunction,
  * including signature, JSDoc description, parameters, and source location.
  */
 function buildFunctionHover(fn: ExportedFunction): string {
@@ -108,10 +75,11 @@ function buildFunctionHover(fn: ExportedFunction): string {
 
 export function onHover(
   params: TextDocumentPositionParams,
-  doc: TextDocument,
-  index: IComponentReader & IFunctionReader & IServiceReader & IRegistryReader,
+  ctx: RequestContext,
 ): Hover | null {
-  const word = getWordAtPosition(doc, params);
+  const doc = ctx.doc;
+  if (!doc) { return null; }
+  const word = getWordAtPosition(doc, params.position);
   if (!word) { return null; }
 
   // ── OWL class catalog (Component, App, EventBus, etc.) ───────────────────
@@ -169,7 +137,7 @@ export function onHover(
   }
 
   // ── Exported functions / utilities from workspace/addons ─────────────────
-  const fn = index.getFunction(word);
+  const fn = ctx.index.getFunction(word);
   if (fn) {
     return {
       contents: {
@@ -179,8 +147,8 @@ export function onHover(
     };
   }
 
-  // ── Workspace component index ─────────────────────────────────────────────
-  const comp = index.getComponent(word);
+  // ── Workspace component ctx.index ─────────────────────────────────────────────
+  const comp = ctx.index.getComponent(word);
   if (comp) {
     const propEntries = Object.entries(comp.props);
     const lines = [
@@ -213,8 +181,8 @@ export function onHover(
     };
   }
 
-  // ── Odoo service index ────────────────────────────────────────────────────
-  const svc = index.getService(word);
+  // ── Odoo service ctx.index ────────────────────────────────────────────────────
+  const svc = ctx.index.getService(word);
   if (svc) {
     return {
       contents: {

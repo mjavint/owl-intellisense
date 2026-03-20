@@ -40,6 +40,7 @@ import {
 import { OwlAliasResolver } from "./resolver/owlAliasResolver";
 import { AddonInfo, CompletionItemData, ISymbolStore } from "../shared/types";
 import { buildAddImportEdits } from "./utils/importUtils";
+import { createRequestContext } from "./shared/requestContext";
 
 // Create the LSP connection
 const connection = createConnection(ProposedFeatures.all);
@@ -288,8 +289,8 @@ connection.onCompletion((params) => {
   if (!doc) {
     return [];
   }
-  // PERF-02: Pass supportsResolve so completion defers import edits when possible
-  return onCompletion(params, doc, index, aliasMap, supportsResolve);
+  const ctx = createRequestContext(doc, index, aliasMap, supportsResolve, typeResolver, connection);
+  return onCompletion(params, ctx);
 });
 
 connection.onCompletionResolve(
@@ -323,7 +324,8 @@ connection.onHover((params) => {
   if (!doc) {
     return null;
   }
-  return onHover(params, doc, index);
+  const ctx = createRequestContext(doc, index, aliasMap, supportsResolve, typeResolver, connection);
+  return onHover(params, ctx);
 });
 
 connection.onDefinition((params) => {
@@ -331,7 +333,8 @@ connection.onDefinition((params) => {
   if (!doc) {
     return null;
   }
-  return onDefinition(params, doc, index, aliasMap);
+  const ctx = createRequestContext(doc, index, aliasMap, supportsResolve, typeResolver, connection);
+  return onDefinition(params, ctx);
 });
 
 connection.onReferences((params) => {
@@ -339,15 +342,23 @@ connection.onReferences((params) => {
   if (!doc) {
     return [];
   }
-  return onReferences(params, doc, index);
+  const ctx = createRequestContext(doc, index, aliasMap, supportsResolve, typeResolver, connection);
+  return onReferences(params, ctx);
 });
 
 connection.onDocumentSymbol((params) => {
-  return onDocumentSymbol(params, index);
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) {
+    return [];
+  }
+  const ctx = createRequestContext(doc, index, aliasMap, supportsResolve, typeResolver, connection);
+  return onDocumentSymbol(params, ctx);
 });
 
 connection.onWorkspaceSymbol((params) => {
-  return onWorkspaceSymbol(params, index);
+  // Workspace symbols don't need a specific document - create minimal context
+  const ctx = createRequestContext(documents.get("")!, index, aliasMap, supportsResolve, typeResolver, connection);
+  return onWorkspaceSymbol(params, ctx);
 });
 
 connection.onCodeAction((params) => {
@@ -355,7 +366,8 @@ connection.onCodeAction((params) => {
   if (!doc) {
     return [];
   }
-  return onCodeAction(params, doc, index, aliasMap);
+  const ctx = createRequestContext(doc, index, aliasMap, supportsResolve, typeResolver, connection);
+  return onCodeAction(params, ctx);
 });
 
 connection.onSignatureHelp((params) => {
@@ -371,7 +383,8 @@ connection.onPrepareRename((params) => {
   if (!doc) {
     return null;
   }
-  return onPrepareRename(params, doc, index);
+  const ctx = createRequestContext(doc, index, aliasMap, supportsResolve, typeResolver, connection);
+  return onPrepareRename(params, ctx);
 });
 
 connection.onRenameRequest(async (params) => {
@@ -379,7 +392,8 @@ connection.onRenameRequest(async (params) => {
   if (!doc) {
     return null;
   }
-  return onRename(params, doc, index);
+  const ctx = createRequestContext(doc, index, aliasMap, supportsResolve, typeResolver, connection);
+  return onRename(params, ctx);
 });
 
 connection.languages.inlayHint.on((params) => {

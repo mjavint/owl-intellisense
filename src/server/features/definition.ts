@@ -4,7 +4,6 @@ import {
   TextDocumentPositionParams,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
-import { IComponentReader, IFunctionReader } from "../../shared/types";
 import { parse } from "@typescript-eslint/typescript-estree";
 import type { TSESTree } from "@typescript-eslint/typescript-estree";
 import { getCursorContext } from "../owl/patterns";
@@ -14,6 +13,8 @@ import { fileURLToPath, pathToFileURL } from "url";
 import * as fs from "fs";
 import * as path from "path";
 import { TypeResolver } from "./typeResolver";
+import { getWordAtPosition, type RequestContext } from "../shared";
+import { IComponentReader, IFunctionReader, AliasMap } from "../../shared/types";
 
 // Singleton TypeResolver — populated by server.ts when .d.ts files are discovered
 export const typeResolver = new TypeResolver();
@@ -27,12 +28,14 @@ export function invalidateAstCache(uri: string): void {
 
 export function onDefinition(
   params: TextDocumentPositionParams,
-  doc: TextDocument,
-  index: IComponentReader & IFunctionReader,
-  aliasMap: Map<string, string>,
+  ctx: RequestContext,
 ): Definition | null {
+  const doc = ctx.doc;
+  if (!doc) { return null; }
   const content = doc.getText();
   const uri = doc.uri;
+  const aliasMap = ctx.aliasMap;
+  const index = ctx.index;
 
   // Get or parse AST
   let ast: TSESTree.Program;
@@ -48,21 +51,21 @@ export function onDefinition(
       }) as TSESTree.Program;
       astCache.set(uri, { version: doc.version, ast });
     } catch {
-      return fallbackWordLookup(params, doc, index);
+      return fallbackWordLookup(params, ctx);
     }
   }
 
-  const ctx = getCursorContext(
+  const cursorCtx = getCursorContext(
     ast,
     params.position.line,
     params.position.character,
   );
 
-  if (ctx.type === "import-path" && ctx.source) {
+  if (cursorCtx.type === "import-path" && cursorCtx.source) {
     // For @odoo/owl: navigate to owl_module.js (the Odoo module declaration) if it exists.
     // Symbols use owl_module.js (handled in import-specifier branch below).
-    if (ctx.source === "@odoo/owl") {
-      const owlFile = resolveImportToFile(ctx.source, uri, aliasMap);
+    if (cursorCtx.source === "@odoo/owl") {
+      const owlFile = resolveImportToFile(cursorCtx.source, uri, aliasMap);
       if (owlFile) {
         const moduleFile = path.join(path.dirname(owlFile), "owl_module.js");
         const target = fs.existsSync(moduleFile) ? moduleFile : owlFile;
@@ -73,13 +76,13 @@ export function onDefinition(
         });
       }
     }
-    return resolveImportPathToLocation(ctx.source, uri, aliasMap);
+    return resolveImportPathToLocation(cursorCtx.source, uri, aliasMap);
   }
 
-  if (ctx.type === "import-specifier" && ctx.source && ctx.name) {
+  if (cursorCtx.type === "import-specifier" && cursorCtx.source && cursorCtx.name) {
     return resolveSpecifierDefinition(
-      ctx.source,
-      ctx.name,
+      cursorCtx.source,
+      cursorCtx.name,
       uri,
       index,
       aliasMap,
@@ -102,7 +105,7 @@ export function onDefinition(
   }
 
   // Fallback: word-at-cursor component lookup
-  return fallbackWordLookup(params, doc, index);
+  return fallbackWordLookup(params, ctx);
 }
 
 /**
@@ -115,7 +118,7 @@ function resolveSpecifierDefinition(
   name: string,
   currentUri: string,
   index: IComponentReader & IFunctionReader,
-  aliasMap: Map<string, string>,
+  aliasMap: Map<string, string> | undefined,
 ): Location | null {
   const resolvedFile = resolveImportToFile(source, currentUri, aliasMap);
 
@@ -284,7 +287,7 @@ function findImportSourceForName(
 function resolveImportPathToLocation(
   source: string,
   currentUri: string,
-  aliasMap: Map<string, string>,
+  aliasMap: Map<string, string> | undefined,
 ): Location | null {
   const resolvedFile = resolveImportToFile(source, currentUri, aliasMap);
   if (!resolvedFile) {
@@ -300,7 +303,7 @@ function resolveImportPathToLocation(
 function resolveImportToFile(
   source: string,
   currentUri: string,
-  aliasMap: Map<string, string>,
+  aliasMap: Map<string, string> | undefined,
 ): string | null {
   // Try alias resolution
   const aliasResolved = resolveAlias(source, aliasMap);
@@ -331,39 +334,21 @@ function resolveImportToFile(
 
 function fallbackWordLookup(
   params: TextDocumentPositionParams,
-  doc: TextDocument,
-  index: IComponentReader & IFunctionReader,
+  ctx: RequestContext,
 ): Location | null {
+  const doc = ctx.doc;
+  if (!doc) { return null; }
   const word = getWordAtPosition(doc, params.position);
   if (!word) {
     return null;
   }
-  const comp = index.getComponent(word);
+  const comp = ctx.index.getComponent(word);
   if (comp) {
     return Location.create(comp.uri, comp.range);
   }
-  const fn = index.getFunction(word);
+  const fn = ctx.index.getFunction(word);
   if (fn) {
     return Location.create(fn.uri, fn.range);
-  }
-  return null;
-}
-
-function getWordAtPosition(
-  doc: TextDocument,
-  position: { line: number; character: number },
-): string | null {
-  const line = doc.getText({
-    start: { line: position.line, character: 0 },
-    end: { line: position.line, character: 2000 },
-  });
-  const char = position.character;
-  const re = /[a-zA-Z_$][a-zA-Z0-9_$]*/g;
-  let m;
-  while ((m = re.exec(line)) !== null) {
-    if (m.index <= char && char <= m.index + m[0].length) {
-      return m[0];
-    }
   }
   return null;
 }

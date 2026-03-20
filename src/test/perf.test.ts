@@ -25,6 +25,8 @@ import { onHover } from '../server/features/hover';
 import { SymbolIndex } from '../server/analyzer/index';
 import { WorkspaceScanner } from '../server/analyzer/scanner';
 import { OdooService, ParseResult, ImportRecord, OwlComponent } from '../shared/types';
+import { createRequestContext } from '../server/shared/requestContext';
+import { typeResolver } from '../server/features/definition';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -416,7 +418,8 @@ class MyComp extends Component {
     // Use hook completion: setup context with no useService open
     const doc = makeSetupDoc('');
     const params = posAtEnd(doc);
-    const items = onCompletion(params, doc, index, undefined, true);
+    const ctx = createRequestContext(doc, index, undefined, true, typeResolver);
+    const items = onCompletion(params, ctx);
 
     // All items that require import should have data set, not additionalTextEdits
     const itemsWithData = items.filter(i => i.data !== undefined);
@@ -438,8 +441,9 @@ class MyComp extends Component {
     const index = new SymbolIndex();
     const doc = makeSetupDoc('');
     const params = posAtEnd(doc);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
     // supportsResolve=false (default)
-    const items = onCompletion(params, doc, index, undefined, false);
+    const items = onCompletion(params, ctx);
     // The hook items appear — no error is thrown
     assert.ok(Array.isArray(items), 'result should be an array');
   });
@@ -467,7 +471,8 @@ class MyComp extends Component {
     const index = new SymbolIndex();
     const doc = makeSetupDoc('');
     const params = posAtEnd(doc);
-    const items = onCompletion(params, doc, index, undefined, true);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
+    const items = onCompletion(params, ctx);
 
     // Find an item that has data (should be hook items that aren't already imported)
     const itemWithData = items.find(i => i.data && typeof i.data === 'object' && 'specifierName' in (i.data as object));
@@ -668,7 +673,8 @@ suite('4.10 hover.ts — bounded line read (PERF-10)', () => {
       position: { line: 0, character: 12 }, // inside 'useState' (starts at 10)
     };
 
-    const result = onHover(params, doc, index);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
+    const result = onHover(params, ctx);
     // onHover should find 'useState' (it's a known OWL hook) and return hover info
     assert.ok(result !== null, 'hover should find the word on a 500-char line');
     const content = result!.contents as { value?: string };
@@ -685,7 +691,8 @@ suite('4.10 hover.ts — bounded line read (PERF-10)', () => {
       position: { line: 0, character: line.length - 1 },
     };
 
-    assert.doesNotThrow(() => onHover(params, doc, index));
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
+    assert.doesNotThrow(() => onHover(params, ctx));
   });
 
   test('hover at cursor position 10 on a 500-char line: reads past position 110', () => {
@@ -703,7 +710,8 @@ suite('4.10 hover.ts — bounded line read (PERF-10)', () => {
       position: { line: 0, character: wordAt + 2 }, // cursor inside 'useState'
     };
 
-    const result = onHover(params, doc, index);
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
+    const result = onHover(params, ctx);
     assert.ok(result !== null, 'hover should work for word at position 200+');
     const content = result!.contents as { value?: string };
     assert.ok(content.value?.includes('useState'), 'hover should return useState docs');
@@ -716,8 +724,9 @@ suite('4.10 hover.ts — bounded line read (PERF-10)', () => {
       textDocument: { uri: doc.uri },
       position: { line: 0, character: 5 },
     };
+    const ctx = createRequestContext(doc, index, undefined, false, typeResolver);
     assert.doesNotThrow(() => {
-      const result = onHover(params, doc, index);
+      const result = onHover(params, ctx);
       assert.strictEqual(result, null, 'unknown word should return null');
     });
   });

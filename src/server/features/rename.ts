@@ -5,40 +5,14 @@ import {
   Range,
   PrepareRenameParams,
 } from 'vscode-languageserver/node';
-import { TextDocument } from 'vscode-languageserver-textdocument';
 import {
   IComponentReader,
   IFunctionReader,
   IImportReader,
   IServiceReader,
 } from '../../shared/types';
+import { getWordAtPositionWithRange, type RequestContext } from '../shared';
 import * as fs from 'fs';
-
-// PERF-10: Bounded line read
-const MAX_LINE_CHARS = 9999;
-
-/**
- * Get the word (identifier) at a given position in the document.
- */
-function getWordAtPosition(
-  doc: TextDocument,
-  position: { line: number; character: number },
-): { word: string; start: number; end: number } | null {
-  const lineText = doc.getText({
-    start: { line: position.line, character: 0 },
-    end: { line: position.line, character: MAX_LINE_CHARS },
-  });
-
-  const char = position.character;
-  let start = char;
-  let end = char;
-
-  while (start > 0 && /[\w$]/.test(lineText[start - 1])) { start--; }
-  while (end < lineText.length && /[\w$]/.test(lineText[end])) { end++; }
-
-  const word = lineText.substring(start, end);
-  return word ? { word, start, end } : null;
-}
 
 /**
  * Check whether the given word is a symbol known to the index.
@@ -107,13 +81,14 @@ function collectImportingUris(
  */
 export function onPrepareRename(
   params: PrepareRenameParams,
-  doc: TextDocument,
-  index: IComponentReader & IFunctionReader & IImportReader & IServiceReader,
+  ctx: RequestContext,
 ): { range: Range; placeholder: string } | null {
-  const wordInfo = getWordAtPosition(doc, params.position);
+  const doc = ctx.doc;
+  if (!doc) { return null; }
+  const wordInfo = getWordAtPositionWithRange(doc, params.position);
   if (!wordInfo) { return null; }
 
-  const kind = resolveSymbolKind(wordInfo.word, index);
+  const kind = resolveSymbolKind(wordInfo.word, ctx.index);
   if (!kind) { return null; }
 
   return {
@@ -138,12 +113,14 @@ export function onPrepareRename(
  */
 export async function onRename(
   params: RenameParams,
-  doc: TextDocument,
-  index: IComponentReader & IFunctionReader & IImportReader & IServiceReader,
+  ctx: RequestContext,
 ): Promise<WorkspaceEdit | null> {
+  const doc = ctx.doc;
+  if (!doc) { return null; }
+  const index = ctx.index;
   const { newName, position } = params;
 
-  const wordInfo = getWordAtPosition(doc, position);
+  const wordInfo = getWordAtPositionWithRange(doc, position);
   if (!wordInfo) { return null; }
 
   const { word: oldName } = wordInfo;
