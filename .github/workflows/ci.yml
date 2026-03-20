@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -24,7 +24,7 @@ jobs:
           version: "9"
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile=false
 
       - name: Lint
         run: pnpm lint
@@ -32,8 +32,8 @@ jobs:
       - name: Type check
         run: pnpm check-types
 
-      - name: Run tests
-        run: pnpm test
+      - name: Run tests with xvfb
+        run: xvfb-run --auto-servernum pnpm test
 
       - name: Build extension
         run: pnpm package
