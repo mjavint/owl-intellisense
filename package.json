@@ -2,7 +2,7 @@
   "name": "owl-lsp",
   "displayName": "OWL LSP",
   "description": "Language Server Protocol for OWL 2.x (Odoo Web Library) — completions, hover, go-to-definition, diagnostics, and more",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "icon": "icon.png",
   "publisher": "mvintg",
   "homepage": "https://github.com/mjavint/owl-intellisense",
