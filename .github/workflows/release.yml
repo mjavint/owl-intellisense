@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
 
 jobs:
   release:
@@ -38,7 +38,7 @@ jobs:
         run: pnpm run package
 
       - name: Package VSIX
-        run: npx @vscode/vsce package --no-dependencies
+        run: pnpx @vscode/vsce package --no-dependencies
 
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@v4
@@ -47,13 +47,13 @@ jobs:
           path: "*.vsix"
 
       - name: Publish to Marketplace
-        run: npx @vscode/vsce publish
+        run: pnpx @vscode/vsce publish --no-dependencies
         env:
           VSCE_PAT: ${{ secrets.VS_MARKETPLACE_TOKEN }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: '*.vsix'
+          files: "*.vsix"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
