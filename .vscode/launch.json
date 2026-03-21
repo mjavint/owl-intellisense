@@ -13,7 +13,7 @@
 				"--extensionDevelopmentPath=${workspaceFolder}"
 			],
 			"outFiles": [
-				"${workspaceFolder}/dist/**/*.js"
+				"${workspaceFolder}/out/**/*.js"
 			],
 			"preLaunchTask": "compile"
 		},
@@ -23,7 +23,7 @@
 			"request": "attach",
 			"port": 6009,
 			"restart": true,
-			"outFiles": ["${workspaceFolder}/dist/server/**/*.js"]
+			"outFiles": ["${workspaceFolder}/out/server/**/*.js"]
 		}
 	],
 	"compounds": [

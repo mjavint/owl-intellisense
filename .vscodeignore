@@ -1,7 +1,6 @@
 .vscode
 .vscode-test
 .vscode-test.*
-out
 node_modules
 src
 openspec
@@ -17,7 +16,6 @@ eslint.config.mjs
 tsconfig.json
 tsconfig*.json
 **/*.ts
-**/*.map
 **/.mocharc*
 **/.vscode-test.*
 package-lock.json
