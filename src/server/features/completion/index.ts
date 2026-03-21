@@ -81,9 +81,13 @@ export function onCompletion(
   // PERF-01: Single-pass context detection
   const completionCtx = detectContext(docText, offset);
 
+  // useService string arg — only service names, no general completions
+  if (completionCtx.kind === "useService") {
+    return provideSetupCompletions(params, ctx, docText, supportsResolve, eagerAst, aliasMap);
+  }
+
   if (
     completionCtx.kind === "setup" ||
-    completionCtx.kind === "useService" ||
     (completionCtx.kind === "unknown" && isInsideSetupMethod(doc, params))
   ) {
     const setupItems = provideSetupCompletions(params, ctx, docText, supportsResolve, eagerAst, aliasMap);
