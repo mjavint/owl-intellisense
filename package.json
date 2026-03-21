@@ -5,18 +5,19 @@
   "version": "0.0.1",
   "icon": "icon.png",
   "publisher": "mvintg",
-  "homepage": "https://github.com/mjavint/owl-lsp",
+  "homepage": "https://github.com/mjavint/owl-intellisense",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mjavint/owl-lsp"
+    "url": "https://github.com/mjavint/owl-intellisense"
   },
-  "qna": "https://github.com/mjavint/owl-lsp/issues",
+  "qna": "https://github.com/mjavint/owl-intellisense/issues",
   "engines": {
     "vscode": "^1.110.0"
   },
   "categories": [
     "Programming Languages",
-    "Linters"
+    "Linters",
+    "Other"
   ],
   "activationEvents": [
     "onLanguage:javascript",
