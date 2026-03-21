@@ -73,7 +73,6 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "node esbuild.js --production",
     "prepackage": "pnpm run check-types && pnpm run lint",
     "package": "node esbuild.js --production",
     "package-vsix": "vsce package --no-dependencies",
@@ -87,6 +86,7 @@
     "test": "vscode-test"
   },
   "devDependencies": {
+    "esbuild": "^0.25.12",
     "@types/node": "22.x",
     "glob": "^11.0.0",
     "@types/vscode": "^1.110.0",

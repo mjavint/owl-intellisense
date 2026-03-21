@@ -34,6 +34,9 @@ jobs:
       - name: Run tests with xvfb
         run: xvfb-run --auto-servernum pnpm test
 
+      - name: Build extension
+        run: pnpm run package
+
       - name: Package VSIX
         run: pnpx @vscode/vsce package --no-dependencies
 
