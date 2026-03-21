@@ -50,10 +50,7 @@ import {
   isInsideStaticComponents,
   isInsideStaticProps,
   isAtClassBodyLevel,
-  getJsxTagComponentName,
-  getEnclosingClassName,
 } from "./contexts";
-import { buildComponentDocs } from "./docs";
 
 type FullIndex = IComponentReader & IFunctionReader & IServiceReader & IRegistryReader & IImportReader & ISetupPropReader;
 
@@ -89,7 +86,9 @@ export function onCompletion(
     completionCtx.kind === "useService" ||
     (completionCtx.kind === "unknown" && isInsideSetupMethod(doc, params))
   ) {
-    return provideSetupCompletions(params, ctx, docText, supportsResolve, eagerAst, aliasMap);
+    const setupItems = provideSetupCompletions(params, ctx, docText, supportsResolve, eagerAst, aliasMap);
+    const generalItems = provideGeneralCompletions(params, ctx, docText);
+    return [...setupItems, ...generalItems];
   }
 
   // G1: this.xxx property completions

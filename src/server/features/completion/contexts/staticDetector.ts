@@ -90,13 +90,27 @@ export function isAtClassBodyLevel(
   const afterClass = before.substring(classMatch);
   let depth = 0;
   let foundOpen = false;
-  for (const ch of afterClass) {
+  let inAssignment = false;
+  for (let i = 0; i < afterClass.length; i++) {
+    const ch = afterClass[i];
     if (ch === "{") {
       depth++;
       foundOpen = true;
     } else if (ch === "}") {
       depth--;
+      if (depth === 1) {
+        inAssignment = false;
+      }
+    } else if (ch === ";" && depth === 1) {
+      inAssignment = false;
+    } else if (
+      ch === "=" && depth === 1 &&
+      afterClass[i - 1] !== "!" && afterClass[i - 1] !== "<" &&
+      afterClass[i - 1] !== ">" && afterClass[i - 1] !== "=" &&
+      afterClass[i + 1] !== ">" && afterClass[i + 1] !== "="
+    ) {
+      inAssignment = true;
     }
   }
-  return foundOpen && depth === 1;
+  return foundOpen && depth === 1 && !inAssignment;
 }
