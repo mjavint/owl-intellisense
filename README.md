@@ -1,6 +1,6 @@
 # OWL LSP
 
-Language Server Protocol extension for **OWL 2.x (Odoo Web Library)** development in Visual Studio Code.
+Language Server Protocol extension for **OWL 2.x (Odoo Web Library)** development.
 
 Provides intelligent code editing by scanning Odoo addon sources and building a live symbol index via AST analysis.
 
