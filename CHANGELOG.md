@@ -2,6 +2,13 @@
 
 ## Release Notes
 
+### 1.1.0 - (2026-04-02)
+
+- Updated package name to `Owl Intellisense` for better clarity and discoverability
+- Added command to restart the LSP server from the VS Code command palette
+- Fixed an issue where the LSP server would not restart properly on Windows due to IPC transport limitations
+- Improved error handling and logging for better debugging of LSP server issues
+
 ### 1.0.4 - (2026-03-27)
 
 - Added support for Windows named pipes in the LSP server IPC transport layer to improve compatibility and performance on Windows platforms
